@@ -1,4 +1,12 @@
-import { db } from "./index";
+// =============================================================================
+// HuntLogic — Database Seed Script
+// =============================================================================
+// Usage: npx tsx src/lib/db/seed.ts
+// Idempotent — safe to re-run (uses onConflictDoNothing).
+// =============================================================================
+
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import {
   states,
   species,
@@ -7,16 +15,30 @@ import {
   appConfig,
 } from "./schema";
 
-// ========================
-// SEED DATA
-// ========================
+// ---------------------------------------------------------------------------
+// Connect to database
+// ---------------------------------------------------------------------------
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  console.error("ERROR: DATABASE_URL environment variable is required.");
+  process.exit(1);
+}
+
+const client = postgres(connectionString, { max: 1 });
+const db = drizzle(client);
+
+// ---------------------------------------------------------------------------
+// Seed data
+// ---------------------------------------------------------------------------
 
 async function seed() {
-  console.log("Seeding database...");
+  console.log("=== HuntLogic Database Seed ===\n");
 
-  // --------------------------------------------------
+  // --------------------------------------------------------------------------
   // 1. STATES — All 50 US states
-  // --------------------------------------------------
+  // --------------------------------------------------------------------------
+  console.log("[1/5] Seeding states...");
+
   const allStates = [
     // Western draw states (primary focus)
     { code: "AZ", name: "Arizona", region: "west", hasDrawSystem: true, hasPointSystem: true, agencyName: "Arizona Game and Fish Department", agencyUrl: "https://www.azgfd.com", config: {}, enabled: true },
@@ -75,15 +97,14 @@ async function seed() {
     { code: "MD", name: "Maryland", region: "east", hasDrawSystem: true, hasPointSystem: false, agencyName: "Maryland Department of Natural Resources", agencyUrl: "https://dnr.maryland.gov", config: {}, enabled: true },
   ];
 
-  console.log("  Inserting states...");
   const insertedStates = await db
     .insert(states)
     .values(allStates)
     .onConflictDoNothing()
     .returning();
-  console.log(`  Inserted ${insertedStates.length} states`);
+  console.log(`  -> ${insertedStates.length} states inserted (${allStates.length} total)`);
 
-  // Build lookup maps
+  // Build lookup map (fetch all if conflict-skipped)
   const stateMap = new Map<string, string>();
   const allInsertedStates =
     insertedStates.length > 0
@@ -93,9 +114,11 @@ async function seed() {
     stateMap.set(s.code, s.id);
   }
 
-  // --------------------------------------------------
+  // --------------------------------------------------------------------------
   // 2. SPECIES — Core hunting species
-  // --------------------------------------------------
+  // --------------------------------------------------------------------------
+  console.log("[2/5] Seeding species...");
+
   const allSpecies = [
     { slug: "elk", commonName: "Elk", scientificName: "Cervus canadensis", category: "big_game", config: {}, enabled: true },
     { slug: "mule_deer", commonName: "Mule Deer", scientificName: "Odocoileus hemionus", category: "big_game", config: {}, enabled: true },
@@ -112,13 +135,12 @@ async function seed() {
     { slug: "mountain_lion", commonName: "Mountain Lion", scientificName: "Puma concolor", category: "big_game", config: {}, enabled: true },
   ];
 
-  console.log("  Inserting species...");
   const insertedSpecies = await db
     .insert(species)
     .values(allSpecies)
     .onConflictDoNothing()
     .returning();
-  console.log(`  Inserted ${insertedSpecies.length} species`);
+  console.log(`  -> ${insertedSpecies.length} species inserted (${allSpecies.length} total)`);
 
   // Build species lookup map
   const speciesMap = new Map<string, string>();
@@ -130,11 +152,11 @@ async function seed() {
     speciesMap.set(sp.slug, sp.id);
   }
 
-  // --------------------------------------------------
+  // --------------------------------------------------------------------------
   // 3. STATE-SPECIES MAPPINGS — Top 12 western draw states
-  // --------------------------------------------------
+  // --------------------------------------------------------------------------
+  console.log("[3/5] Seeding state-species mappings...");
 
-  // Helper to get IDs
   const sid = (code: string) => stateMap.get(code)!;
   const spid = (slug: string) => speciesMap.get(slug)!;
 
@@ -264,17 +286,18 @@ async function seed() {
     { stateId: sid("KS"), speciesId: spid("turkey"), huntTypes: ["shotgun", "archery"], hasDraw: false, hasOtc: true, hasPoints: false, pointType: null, maxPoints: null, config: {} },
   ];
 
-  console.log("  Inserting state-species mappings...");
   const insertedStateSpecies = await db
     .insert(stateSpecies)
     .values(stateSpeciesMappings)
     .onConflictDoNothing()
     .returning();
-  console.log(`  Inserted ${insertedStateSpecies.length} state-species mappings`);
+  console.log(`  -> ${insertedStateSpecies.length} state-species mappings inserted (${stateSpeciesMappings.length} total)`);
 
-  // --------------------------------------------------
+  // --------------------------------------------------------------------------
   // 4. AI PROMPTS — Default prompt templates
-  // --------------------------------------------------
+  // --------------------------------------------------------------------------
+  console.log("[4/5] Seeding AI prompts...");
+
   const defaultPrompts = [
     {
       slug: "onboarding_welcome",
@@ -418,17 +441,18 @@ Total Recommendations: {{rec_count}}`,
     },
   ];
 
-  console.log("  Inserting AI prompts...");
   const insertedPrompts = await db
     .insert(aiPrompts)
     .values(defaultPrompts)
     .onConflictDoNothing()
     .returning();
-  console.log(`  Inserted ${insertedPrompts.length} AI prompts`);
+  console.log(`  -> ${insertedPrompts.length} AI prompts inserted (${defaultPrompts.length} total)`);
 
-  // --------------------------------------------------
+  // --------------------------------------------------------------------------
   // 5. APP CONFIG — Default configuration
-  // --------------------------------------------------
+  // --------------------------------------------------------------------------
+  console.log("[5/5] Seeding app config...");
+
   const defaultConfigs = [
     {
       namespace: "onboarding",
@@ -482,24 +506,36 @@ Total Recommendations: {{rec_count}}`,
     },
   ];
 
-  console.log("  Inserting app config...");
   const insertedConfigs = await db
     .insert(appConfig)
     .values(defaultConfigs)
     .onConflictDoNothing()
     .returning();
-  console.log(`  Inserted ${insertedConfigs.length} app config entries`);
+  console.log(`  -> ${insertedConfigs.length} app config entries inserted (${defaultConfigs.length} total)`);
 
-  console.log("\nSeed complete!");
+  // --------------------------------------------------------------------------
+  // Summary
+  // --------------------------------------------------------------------------
+  console.log("\n=== Seed Summary ===");
+  console.log(`  States:               ${allStates.length}`);
+  console.log(`  Species:              ${allSpecies.length}`);
+  console.log(`  State-Species:        ${stateSpeciesMappings.length}`);
+  console.log(`  AI Prompts:           ${defaultPrompts.length}`);
+  console.log(`  App Config:           ${defaultConfigs.length}`);
+  console.log("=== Seed complete ===\n");
 }
 
-// Run seed
+// ---------------------------------------------------------------------------
+// Execute
+// ---------------------------------------------------------------------------
 seed()
-  .then(() => {
-    console.log("Done.");
+  .then(async () => {
+    console.log("Done. Closing connection...");
+    await client.end();
     process.exit(0);
   })
-  .catch((err) => {
+  .catch(async (err) => {
     console.error("Seed failed:", err);
+    await client.end();
     process.exit(1);
   });
