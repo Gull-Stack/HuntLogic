@@ -11,7 +11,7 @@ import { redisConnection, normalizeQueue } from "../queue";
 import { getParser } from "../parsers";
 import type { ParseJobData, NormalizeJobData, ParserConfig } from "../types";
 
-const QUEUE_NAME = "ingestion:parse";
+const QUEUE_NAME = "ingestion-parse";
 const LOG_PREFIX = "[ingestion:parse]";
 
 // ---------------------------------------------------------------------------

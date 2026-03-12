@@ -13,7 +13,7 @@ import { redisConnection } from "../queue";
 import { QualityScorer } from "../normalizers/quality-scorer";
 import type { EmbedJobData } from "../types";
 
-const QUEUE_NAME = "ingestion:embed";
+const QUEUE_NAME = "ingestion-embed";
 const LOG_PREFIX = "[ingestion:embed]";
 
 const qualityScorer = new QualityScorer();

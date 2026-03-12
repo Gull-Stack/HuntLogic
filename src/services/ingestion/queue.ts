@@ -53,25 +53,25 @@ const defaultJobOptions = {
 // Queue Instances
 // ---------------------------------------------------------------------------
 
-export const fetchQueue = new Queue<FetchJobData>("ingestion:fetch", {
+export const fetchQueue = new Queue<FetchJobData>("ingestion-fetch", {
   connection: redisConnection,
   defaultJobOptions,
 });
 
-export const parseQueue = new Queue<ParseJobData>("ingestion:parse", {
+export const parseQueue = new Queue<ParseJobData>("ingestion-parse", {
   connection: redisConnection,
   defaultJobOptions,
 });
 
 export const normalizeQueue = new Queue<NormalizeJobData>(
-  "ingestion:normalize",
+  "ingestion-normalize",
   {
     connection: redisConnection,
     defaultJobOptions,
   }
 );
 
-export const embedQueue = new Queue<EmbedJobData>("ingestion:embed", {
+export const embedQueue = new Queue<EmbedJobData>("ingestion-embed", {
   connection: redisConnection,
   defaultJobOptions: {
     ...defaultJobOptions,
@@ -115,5 +115,5 @@ export async function closeQueues(): Promise<void> {
     normalizeQueue.close(),
     embedQueue.close(),
   ]);
-  console.log("[ingestion:queue] All queues closed");
+  console.log("[ingestion-queue] All queues closed");
 }

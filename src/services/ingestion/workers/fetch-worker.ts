@@ -13,7 +13,7 @@ import { redisConnection, parseQueue } from "../queue";
 import { getAdapter } from "../adapters";
 import type { FetchJobData, ScraperConfig, ParseJobData } from "../types";
 
-const QUEUE_NAME = "ingestion:fetch";
+const QUEUE_NAME = "ingestion-fetch";
 const LOG_PREFIX = "[ingestion:fetch]";
 
 // ---------------------------------------------------------------------------

@@ -23,7 +23,7 @@ import { StateNormalizer } from "../normalizers/state-normalizer";
 import { QualityScorer } from "../normalizers/quality-scorer";
 import type { NormalizeJobData, ParsedDrawOdds, ParsedHarvestStats, ParsedSeason } from "../types";
 
-const QUEUE_NAME = "ingestion:normalize";
+const QUEUE_NAME = "ingestion-normalize";
 const LOG_PREFIX = "[ingestion:normalize]";
 
 const normalizer = new StateNormalizer();
