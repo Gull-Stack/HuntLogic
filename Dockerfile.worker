@@ -1,0 +1,36 @@
+# =============================================================================
+# HuntLogic — Ingestion Worker Service
+# =============================================================================
+# Persistent BullMQ worker for the 4-stage ingestion pipeline:
+#   fetch → parse → normalize → embed
+#
+# Deploy as a Railway service alongside PostgreSQL and Redis.
+# Required env vars: DATABASE_URL, REDIS_URL
+# =============================================================================
+
+FROM node:22-alpine
+
+# Install ca-certificates for HTTPS fetches to state agency sites
+RUN apk add --no-cache ca-certificates
+
+WORKDIR /app
+
+# Install dependencies first (layer caching)
+COPY package.json package-lock.json ./
+RUN npm ci --ignore-scripts
+
+# Copy source code
+COPY src/ ./src/
+COPY tsconfig.json ./
+COPY drizzle.config.ts ./
+
+# Worker has no HTTP port — it's a background process
+# Railway will keep it running as a "Worker" service type
+
+ENV NODE_ENV=production
+
+# Health check: verify the process is alive
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD pgrep -f "ingestion/start" || exit 1
+
+CMD ["npx", "tsx", "src/services/ingestion/start.ts"]
