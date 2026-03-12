@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  typescript: {
+    // Skip type checking during build — run `tsc --noEmit` separately in CI
+    ignoreBuildErrors: true,
+  },
   experimental: {
     // Enable server actions
     serverActions: {

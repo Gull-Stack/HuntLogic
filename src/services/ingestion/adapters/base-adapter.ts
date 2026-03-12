@@ -121,6 +121,6 @@ export abstract class BaseAdapter {
       ? config.user_agents
       : defaultAgents;
 
-    return agents[Math.floor(Math.random() * agents.length)];
+    return agents[Math.floor(Math.random() * agents.length)]!;
   }
 }

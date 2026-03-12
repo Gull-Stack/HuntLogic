@@ -109,7 +109,7 @@ async function validate() {
     }
 
     const result = await sql.unsafe(`SELECT COUNT(*)::int AS count FROM "${table}"`);
-    const actualCount = result[0].count;
+    const actualCount = result[0]!.count;
 
     if (actualCount >= expectedCount) {
       pass(`${table}: ${actualCount} rows (expected >= ${expectedCount})`);
@@ -123,7 +123,7 @@ async function validate() {
   for (const table of nonSeededTables) {
     if (!existingTableNames.has(table)) continue;
     const result = await sql.unsafe(`SELECT COUNT(*)::int AS count FROM "${table}"`);
-    pass(`${table}: ${result[0].count} rows (no seed expected)`);
+    pass(`${table}: ${result[0]!.count} rows (no seed expected)`);
   }
 
   // --------------------------------------------------------------------------
@@ -150,7 +150,7 @@ async function validate() {
     `;
 
     if (joinResult.length === 1) {
-      const row = joinResult[0];
+      const row = joinResult[0]!;
       pass(`JOIN query: CO Elk — draw=${row.has_draw}, points=${row.has_points}, type=${row.point_type}`);
     } else {
       fail(`JOIN query: Expected 1 row for CO Elk, got ${joinResult.length}`);
@@ -173,7 +173,7 @@ async function validate() {
     `;
 
     if (multiResult.length > 0) {
-      const top = multiResult[0];
+      const top = multiResult[0]!;
       pass(`Aggregation query: Top state = ${top.state_code} with ${top.species_count} species`);
     } else {
       fail("Aggregation query returned 0 rows");
@@ -195,7 +195,7 @@ async function validate() {
     `;
 
     if (extResult.length === 1) {
-      pass(`pgvector extension v${extResult[0].extversion} is installed`);
+      pass(`pgvector extension v${extResult[0]!.extversion} is installed`);
     } else {
       fail("pgvector extension is NOT installed");
     }
@@ -212,7 +212,7 @@ async function validate() {
     `;
 
     if (colResult.length === 1) {
-      pass(`documents.embedding column exists (type: ${colResult[0].udt_name})`);
+      pass(`documents.embedding column exists (type: ${colResult[0]!.udt_name})`);
     } else {
       fail("documents.embedding column is MISSING");
     }

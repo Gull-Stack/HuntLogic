@@ -13,7 +13,6 @@ import {
   embedQueue,
   closeQueues,
   checkQueueHealth,
-  redisConnection,
 } from "./queue";
 import { createFetchWorker } from "./workers/fetch-worker";
 import { createParseWorker } from "./workers/parse-worker";
@@ -22,8 +21,6 @@ import { createEmbedWorker } from "./workers/embed-worker";
 import {
   startScheduler,
   stopScheduler,
-  triggerSource,
-  triggerState,
   isSchedulerRunning,
   getScheduledJobCount,
 } from "./scheduler";

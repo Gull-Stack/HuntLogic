@@ -32,13 +32,8 @@ declare module "next-auth" {
   }
 }
 
-declare module "next-auth/jwt" {
-  interface JWT {
-    userId: string;
-    onboardingComplete: boolean;
-    onboardingStep: string;
-  }
-}
+// JWT extension: userId, onboardingComplete, onboardingStep
+// are added via the jwt callback below and typed via `as` casts
 
 // =============================================================================
 // Auth configuration
@@ -131,18 +126,19 @@ export const authConfig: NextAuthConfig = {
      * jwt: Add userId, onboardingComplete, and onboardingStep to JWT token.
      */
     async jwt({ token, user, trigger }) {
+      const t = token as Record<string, unknown>;
       // On initial sign-in or when token is refreshed
       if (user?.email || trigger === "signIn" || trigger === "update") {
-        const email = user?.email ?? token.email;
+        const email = user?.email ?? (t.email as string | undefined);
         if (email) {
           const dbUser = await db.query.users.findFirst({
             where: eq(users.email, email.toLowerCase()),
           });
 
           if (dbUser) {
-            token.userId = dbUser.id;
-            token.onboardingComplete = dbUser.onboardingComplete;
-            token.onboardingStep = dbUser.onboardingStep;
+            t.userId = dbUser.id;
+            t.onboardingComplete = dbUser.onboardingComplete;
+            t.onboardingStep = dbUser.onboardingStep;
           }
         }
       }
@@ -154,10 +150,11 @@ export const authConfig: NextAuthConfig = {
      * session: Expose userId, onboardingComplete, onboardingStep in session.
      */
     async session({ session, token }) {
-      if (token.userId) {
-        session.user.id = token.userId;
-        session.user.onboardingComplete = token.onboardingComplete ?? false;
-        session.user.onboardingStep = token.onboardingStep ?? "welcome";
+      const t = token as Record<string, unknown>;
+      if (t.userId) {
+        session.user.id = t.userId as string;
+        session.user.onboardingComplete = (t.onboardingComplete as boolean) ?? false;
+        session.user.onboardingStep = (t.onboardingStep as string) ?? "welcome";
       }
 
       return session;
