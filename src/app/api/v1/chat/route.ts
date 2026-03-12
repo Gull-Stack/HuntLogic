@@ -9,7 +9,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const _body = await request.json();
+  await request.json();
 
   // TODO: Send message to AI concierge, stream response
   // Will use Anthropic Claude SDK with RAG context

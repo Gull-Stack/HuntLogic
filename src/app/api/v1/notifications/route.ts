@@ -10,7 +10,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const _body = await request.json();
+  await request.json();
 
   // TODO: Mark notification as read, subscribe to push, etc.
   return NextResponse.json(

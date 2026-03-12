@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const _query = searchParams.get("q");
-  const _type = searchParams.get("type"); // units, species, states
-  const _limit = searchParams.get("limit");
-
+export async function GET(_request: NextRequest) {
   // TODO: Query Meilisearch for hunt units, species, regulations
+  // Supported query params: q, type (units|species|states), limit
   return NextResponse.json({
     results: [],
     total: 0,
@@ -15,7 +11,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const _body = await request.json();
+  await request.json();
 
   // TODO: Advanced search with filters
   return NextResponse.json(

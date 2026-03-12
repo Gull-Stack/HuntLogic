@@ -68,6 +68,12 @@ export {
   appConfig,
 } from "./config";
 
+// Regulations domain
+export {
+  stateRegulations,
+  stateRegulationsRelations,
+} from "./regulations";
+
 // Auth domain
 export {
   authAccounts,

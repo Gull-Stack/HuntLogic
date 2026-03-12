@@ -4,7 +4,7 @@
 // =============================================================================
 
 import { eq, and } from "drizzle-orm";
-import type { Adapter, AdapterUser, AdapterAccount } from "next-auth/adapters";
+import type { Adapter, AdapterAccount } from "next-auth/adapters";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema/users";
 import { authAccounts, verificationTokens } from "@/lib/db/schema/auth";

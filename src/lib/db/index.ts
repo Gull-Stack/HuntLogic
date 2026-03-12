@@ -8,6 +8,7 @@ import * as recommendations from "./schema/recommendations";
 import * as actions from "./schema/actions";
 import * as dataSources from "./schema/data-sources";
 import * as config from "./schema/config";
+import * as regulations from "./schema/regulations";
 import * as authSchema from "./schema/auth";
 
 const connectionString = process.env.DATABASE_URL!;
@@ -28,6 +29,7 @@ export const db = drizzle(queryClient, {
     ...actions,
     ...dataSources,
     ...config,
+    ...regulations,
     ...authSchema,
   },
 });
