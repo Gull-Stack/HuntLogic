@@ -1,0 +1,167 @@
+@import "tailwindcss";
+
+/* =============================================================================
+   HuntLogic Concierge — Design Tokens & Global Styles
+   Mobile-first approach
+   ============================================================================= */
+
+@theme {
+  /* Brand Colors */
+  --color-brand-forest: #1B4332;
+  --color-brand-sage: #52796F;
+  --color-brand-earth: #8B7355;
+  --color-brand-sky: #457B9D;
+  --color-brand-sunset: #E07A5F;
+  --color-brand-cream: #F4F1DE;
+  --color-brand-bark: #3D2B1F;
+
+  /* Semantic Colors */
+  --color-success: #22C55E;
+  --color-warning: #EAB308;
+  --color-danger: #EF4444;
+  --color-info: #457B9D;
+
+  /* Typography Scale — Mobile First */
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.875rem;
+  --font-size-4xl: 2.25rem;
+
+  /* Spacing Scale */
+  --spacing-page-x: 1rem;
+  --spacing-page-y: 1rem;
+  --spacing-card: 1rem;
+  --spacing-section: 2rem;
+
+  /* Border Radius */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+
+  /* Z-Index Scale */
+  --z-dropdown: 50;
+  --z-sticky: 100;
+  --z-overlay: 200;
+  --z-modal: 300;
+  --z-toast: 400;
+
+  /* Bottom Navigation Height (mobile) */
+  --nav-height: 4rem;
+}
+
+/* =============================================================================
+   Base Styles
+   ============================================================================= */
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  overscroll-behavior-y: none;
+}
+
+/* Safe area padding for notched devices */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* =============================================================================
+   Mobile Navigation — Bottom Tab Bar
+   ============================================================================= */
+
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--nav-height);
+  padding-bottom: env(safe-area-inset-bottom);
+  z-index: var(--z-sticky);
+}
+
+/* =============================================================================
+   Card System
+   ============================================================================= */
+
+.card {
+  background: white;
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-card);
+  box-shadow: var(--shadow-sm);
+}
+
+.card-interactive {
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.card-interactive:active {
+  transform: scale(0.98);
+}
+
+@media (hover: hover) {
+  .card-interactive:hover {
+    box-shadow: var(--shadow-md);
+  }
+}
+
+/* =============================================================================
+   Responsive Adjustments
+   ============================================================================= */
+
+@media (min-width: 768px) {
+  @theme {
+    --spacing-page-x: 2rem;
+    --spacing-page-y: 1.5rem;
+    --spacing-card: 1.5rem;
+    --spacing-section: 3rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  @theme {
+    --spacing-page-x: 3rem;
+    --spacing-page-y: 2rem;
+    --spacing-card: 2rem;
+    --spacing-section: 4rem;
+  }
+}
+
+/* =============================================================================
+   Utility Classes
+   ============================================================================= */
+
+.text-gradient {
+  background: linear-gradient(
+    135deg,
+    var(--color-brand-forest),
+    var(--color-brand-sage)
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.bg-pattern {
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%231B4332' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}

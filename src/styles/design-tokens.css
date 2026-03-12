@@ -1,0 +1,48 @@
+/*
+ * HuntLogic Design Tokens
+ * Supplemental token file for components that import directly.
+ * Primary tokens are defined in globals.css via @theme.
+ */
+
+:root {
+  /* Color Primitives */
+  --hl-green-50: #f0fdf4;
+  --hl-green-100: #dcfce7;
+  --hl-green-200: #bbf7d0;
+  --hl-green-300: #86efac;
+  --hl-green-400: #4ade80;
+  --hl-green-500: #22c55e;
+  --hl-green-600: #16a34a;
+  --hl-green-700: #15803d;
+  --hl-green-800: #166534;
+  --hl-green-900: #14532d;
+  --hl-green-950: #052e16;
+
+  --hl-earth-50: #fdf8f1;
+  --hl-earth-100: #f5ead6;
+  --hl-earth-200: #e8d4ad;
+  --hl-earth-300: #d4b77e;
+  --hl-earth-400: #c49a57;
+  --hl-earth-500: #8b7355;
+  --hl-earth-600: #7a6349;
+  --hl-earth-700: #65513d;
+  --hl-earth-800: #4f3f31;
+  --hl-earth-900: #3d2b1f;
+
+  /* Transition Tokens */
+  --hl-transition-fast: 150ms ease;
+  --hl-transition-normal: 250ms ease;
+  --hl-transition-slow: 350ms ease;
+
+  /* Focus Ring */
+  --hl-focus-ring: 0 0 0 2px var(--color-brand-cream), 0 0 0 4px var(--color-brand-sky);
+
+  /* Touch Targets — minimum 44x44px for mobile a11y */
+  --hl-touch-target: 44px;
+}
+
+/* Dark mode overrides */
+[data-theme="dark"],
+.dark {
+  --hl-focus-ring: 0 0 0 2px var(--color-brand-bark), 0 0 0 4px var(--color-brand-sky);
+}
