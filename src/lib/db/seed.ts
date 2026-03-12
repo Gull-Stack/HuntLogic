@@ -752,6 +752,108 @@ Total Recommendations: {{rec_count}}`,
       version: 1,
       active: true,
     },
+    // ====================================================================
+    // Additional Onboarding Prompts (Step 4 — Profile Service)
+    // ====================================================================
+    {
+      slug: "onboarding_points",
+      name: "Onboarding Preference Points",
+      category: "onboarding",
+      template: `You are a friendly hunting strategist. Ask the hunter about their current preference/bonus points across western states. Be conversational. If they don't know what points are, briefly explain. Ask which states they have points in and how many.
+
+Current profile: {{profile_summary}}`,
+      variables: ["profile_summary"],
+      model: "claude-sonnet-4-6",
+      maxTokens: 512,
+      temperature: 0.7,
+      version: 1,
+      active: true,
+    },
+    {
+      slug: "onboarding_travel",
+      name: "Onboarding Travel Tolerance",
+      category: "onboarding",
+      template: `You are a friendly hunting strategist. Ask the hunter about how far they're willing to travel for hunts. Are they looking to stay close to home, drive regionally, or fly anywhere? Be conversational and warm.
+
+Current profile: {{profile_summary}}`,
+      variables: ["profile_summary"],
+      model: "claude-sonnet-4-6",
+      maxTokens: 512,
+      temperature: 0.7,
+      version: 1,
+      active: true,
+    },
+    {
+      slug: "onboarding_style",
+      name: "Onboarding Hunt Style",
+      category: "onboarding",
+      template: `You are a friendly hunting strategist. Ask the hunter about their preferred hunting style. Do they prefer DIY public land, private land access, guided hunts, or a mix? Be warm and non-judgmental.
+
+Current profile: {{profile_summary}}`,
+      variables: ["profile_summary"],
+      model: "claude-sonnet-4-6",
+      maxTokens: 512,
+      temperature: 0.7,
+      version: 1,
+      active: true,
+    },
+    {
+      slug: "onboarding_location",
+      name: "Onboarding Home Location",
+      category: "onboarding",
+      template: `You are a friendly hunting strategist. Ask the hunter where they're based (home state). This helps us find nearby opportunities and factor in residency advantages. Be conversational.
+
+Current profile: {{profile_summary}}`,
+      variables: ["profile_summary"],
+      model: "claude-sonnet-4-6",
+      maxTokens: 512,
+      temperature: 0.7,
+      version: 1,
+      active: true,
+    },
+    {
+      slug: "onboarding_weapon",
+      name: "Onboarding Weapon Preference",
+      category: "onboarding",
+      template: `You are a friendly hunting strategist. Ask the hunter about their weapon preferences — rifle, archery, muzzleloader, or no preference. Be conversational.
+
+Current profile: {{profile_summary}}`,
+      variables: ["profile_summary"],
+      model: "claude-sonnet-4-6",
+      maxTokens: 512,
+      temperature: 0.7,
+      version: 1,
+      active: true,
+    },
+    {
+      slug: "onboarding_physical",
+      name: "Onboarding Physical Ability",
+      category: "onboarding",
+      template: `You are a friendly hunting strategist. Ask the hunter about their comfort level with physical demands — backcountry high-altitude, moderate terrain, or road-accessible. Be respectful and inclusive.
+
+Current profile: {{profile_summary}}`,
+      variables: ["profile_summary"],
+      model: "claude-sonnet-4-6",
+      maxTokens: 512,
+      temperature: 0.7,
+      version: 1,
+      active: true,
+    },
+    {
+      slug: "interpret_free_text",
+      name: "Free Text Answer Interpreter",
+      category: "onboarding",
+      template: `You are a hunting data extraction assistant. Given a hunter's free-text response to a question, extract structured preferences. Return JSON with an array of {category, key, value, confidence} objects. Only extract what is clearly stated or strongly implied. Be conservative.
+
+Question context: {{question_context}}
+Hunter's response: {{response_text}}`,
+      variables: ["question_context", "response_text"],
+      model: "claude-sonnet-4-6",
+      maxTokens: 1024,
+      temperature: 0.3,
+      version: 1,
+      active: true,
+    },
   ];
 
   const insertedPrompts = await db
