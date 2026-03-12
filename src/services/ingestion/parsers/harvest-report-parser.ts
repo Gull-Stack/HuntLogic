@@ -55,11 +55,21 @@ export class HarvestReportParser extends BaseParser {
       warnings = result.warnings;
       columnCount = result.columnCount;
     } else {
-      // Attempt narrative parsing
-      const result = this.parseNarrativeReport(rawContent, config);
-      records = result.records;
-      warnings = result.warnings;
-      columnCount = 0;
+      // Try text-table extraction (PDF text), then fall back to narrative
+      const textTable = this.extractTextTable(rawContent);
+      if (textTable.length >= 2) {
+        console.log("[ingestion:parser:harvest_report] Using text-table extraction (PDF/plain text)");
+        const htmlTable = this.textTableToHtml(textTable);
+        const result = this.parseTableReport(htmlTable, columnMap, config);
+        records = result.records;
+        warnings = result.warnings;
+        columnCount = result.columnCount;
+      } else {
+        const result = this.parseNarrativeReport(rawContent, config);
+        records = result.records;
+        warnings = result.warnings;
+        columnCount = 0;
+      }
     }
 
     const qualityScore = this.calculateQuality(records);

@@ -149,6 +149,101 @@ export abstract class BaseParser {
   }
 
   // -------------------------------------------------------------------------
+  // PDF text-table extraction (for space-aligned tabular text from pdf-parse)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Parse space-aligned tabular text (from PDF extraction) into a 2D array.
+   * Handles repeated page headers, separator rows, and multi-row headers
+   * common in state agency PDF reports.
+   */
+  protected extractTextTable(text: string): string[][] {
+    const lines = text
+      .split("\n")
+      .map((l) => l.replace(/\r$/, ""))
+      .filter((l) => l.trim().length > 0);
+
+    if (lines.length < 2) return [];
+
+    // Split all lines on 2+ spaces or tabs
+    const allRows = lines.map((line) =>
+      line
+        .split(/\s{2,}/)
+        .map((cell) => cell.trim())
+        .filter((cell) => cell.length > 0)
+    );
+
+    // Determine dominant column count
+    const colCounts = allRows.map((r) => r.length);
+    const mostCommon = this.mode(colCounts);
+    if (mostCommon < 3) return allRows.filter((r) => r.length >= 2);
+
+    // Filter to rows with consistent column count
+    const consistent = allRows.filter(
+      (r) => Math.abs(r.length - mostCommon) <= 1
+    );
+
+    if (consistent.length < 2) return [];
+
+    // Remove separator rows (all dashes/underscores)
+    const noSeparators = consistent.filter(
+      (r) => !r.every((c) => /^[-_=.]+$/.test(c))
+    );
+
+    // Collect all unique header-like rows (no digits in any cell) for dedup
+    const headerKeys = new Set<string>();
+    for (const row of noSeparators) {
+      if (row.every((c) => !/\d/.test(c))) {
+        headerKeys.add(row.join("|"));
+      }
+    }
+
+    // Keep first occurrence of each header pattern, remove subsequent duplicates
+    const seenHeaders = new Set<string>();
+    const deduped: string[][] = [];
+    for (const row of noSeparators) {
+      const key = row.join("|");
+      if (headerKeys.has(key)) {
+        if (!seenHeaders.has(key)) {
+          seenHeaders.add(key);
+          deduped.push(row);
+        }
+        // Skip duplicate header rows
+      } else {
+        deduped.push(row);
+      }
+    }
+
+    return deduped.map((r) => r.map((c) => this.cleanCell(c)));
+  }
+
+  /** Find the most frequent value in a number array. */
+  private mode(arr: number[]): number {
+    const freq = new Map<number, number>();
+    for (const v of arr) freq.set(v, (freq.get(v) || 0) + 1);
+    let maxCount = 0;
+    let modeVal = 0;
+    for (const [val, count] of freq) {
+      if (count > maxCount) { maxCount = count; modeVal = val; }
+    }
+    return modeVal;
+  }
+
+  /**
+   * Convert a 2D text table array back to HTML table string.
+   * Useful for reusing HTML-table parsers with PDF-extracted text.
+   */
+  protected textTableToHtml(rows: string[][]): string {
+    if (rows.length === 0) return "<table></table>";
+    const headerHtml = rows[0].map((h) => `<th>${h}</th>`).join("");
+    const bodyHtml = rows
+      .slice(1)
+      .map((row) => `<tr>${row.map((c) => `<td>${c}</td>`).join("")}</tr>`)
+      .join("\n");
+    return `<table><tr>${headerHtml}</tr>\n${bodyHtml}</table>`;
+  }
+
+  // -------------------------------------------------------------------------
   // CSV parsing
   // -------------------------------------------------------------------------
 

@@ -40,7 +40,17 @@ export class DrawOddsTableParser extends BaseParser {
     console.log("[ingestion:parser:draw_odds_table] Parsing draw odds table");
 
     const columnMap = { ...DEFAULT_COLUMN_MAP, ...(config.column_mappings || {}) };
-    const tableData = this.extractTable(rawContent, config.table_selector);
+    const isHtml = /<table/i.test(rawContent);
+
+    // Try HTML table extraction first, fall back to PDF text-table parsing
+    let tableData: string[][];
+    if (isHtml) {
+      tableData = this.extractTable(rawContent, config.table_selector);
+    } else {
+      // Plain text (from pdf-parse or other non-HTML source)
+      console.log("[ingestion:parser:draw_odds_table] No HTML detected — using text-table extraction");
+      tableData = this.extractTextTable(rawContent);
+    }
 
     if (tableData.length < 2) {
       return {
@@ -55,13 +65,25 @@ export class DrawOddsTableParser extends BaseParser {
           parsedAt: new Date().toISOString(),
         },
         qualityScore: 0,
-        warnings: ["No data rows found in draw odds table"],
+        warnings: [isHtml ? "No data rows found in draw odds table" : "No tabular data extracted from PDF text"],
       };
     }
 
     // Determine header row and data start
     const headerRowIdx = config.header_row ?? 0;
-    const dataStartIdx = config.data_start_row ?? headerRowIdx + 1;
+    let dataStartIdx = config.data_start_row ?? headerRowIdx + 1;
+
+    // For non-HTML tables (PDF text), auto-detect first data row by finding
+    // the first row that starts with a digit (skip multi-row headers)
+    if (!isHtml && config.data_start_row === undefined) {
+      for (let i = 0; i < Math.min(10, tableData.length); i++) {
+        if (tableData[i].some((c) => /^\d/.test(c))) {
+          dataStartIdx = i;
+          break;
+        }
+      }
+    }
+
     const headerRow = tableData[headerRowIdx].map((h) =>
       h.toLowerCase().trim()
     );

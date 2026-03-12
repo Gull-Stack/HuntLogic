@@ -41,7 +41,6 @@ async function processParseJob(job: Job<ParseJobData>): Promise<void> {
 
     // Parse the raw content
     const parsedResult = await parser.parse(rawContent, parserConfig);
-
     console.log(
       `${LOG_PREFIX} Parsed ${parsedResult.records.length} records (quality: ${parsedResult.qualityScore.toFixed(2)}, warnings: ${parsedResult.warnings.length})`
     );

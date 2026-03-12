@@ -158,16 +158,20 @@ export class PdfAdapter extends BaseAdapter {
   // -------------------------------------------------------------------------
 
   private async extractText(buffer: ArrayBuffer): Promise<string> {
-    // TODO: Integrate pdf-parse or pdfjs-dist for real extraction
-    // const pdfParse = await import("pdf-parse");
-    // const result = await pdfParse(Buffer.from(buffer));
-    // return result.text;
-
-    // Placeholder: return a marker indicating PDF needs parsing
-    console.log(
-      "[ingestion:adapter:pdf_download] PDF text extraction placeholder — install pdf-parse for production"
-    );
-    return `[PDF_CONTENT:${buffer.byteLength}_bytes]`;
+    try {
+      const { PDFParse } = await import("pdf-parse");
+      const parser = new PDFParse({ data: Buffer.from(buffer) });
+      const result = await parser.getText();
+      console.log(
+        `[ingestion:adapter:pdf_download] Extracted ${result.text.length} chars from PDF (${result.total} pages)`
+      );
+      return result.text;
+    } catch (error) {
+      console.error(
+        `[ingestion:adapter:pdf_download] PDF text extraction failed: ${error instanceof Error ? error.message : String(error)}`
+      );
+      return `[PDF_EXTRACTION_FAILED:${buffer.byteLength}_bytes]`;
+    }
   }
 
   // -------------------------------------------------------------------------
