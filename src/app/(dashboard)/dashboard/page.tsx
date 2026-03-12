@@ -1,112 +1,153 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { AlertBanner } from "@/components/dashboard/AlertBanner";
 import { StrategySnapshot } from "@/components/dashboard/StrategySnapshot";
 import { DeadlineWidget } from "@/components/dashboard/DeadlineWidget";
 import { ActionFeed } from "@/components/dashboard/ActionFeed";
 import { SkeletonList } from "@/components/ui/Skeleton";
+import { apiClient } from "@/lib/api/client";
 
-// Mock data for demo/development
-const mockAlerts = [
-  {
-    id: "1",
-    type: "urgent" as const,
-    message: "Colorado elk application deadline in 5 days",
-    ctaLabel: "Apply Now",
-    ctaHref: "/calendar",
-  },
-  {
-    id: "2",
-    type: "info" as const,
-    message: "New draw results available for Wyoming",
-    ctaLabel: "View Results",
-    ctaHref: "/recommendations",
-  },
-];
-
-const mockDeadlines = [
-  {
-    id: "d1",
-    state: "Colorado",
-    stateCode: "CO",
-    title: "Primary elk application",
-    date: "2026-04-01",
-    type: "Application",
-  },
-  {
-    id: "d2",
-    state: "Wyoming",
-    stateCode: "WY",
-    title: "Moose/sheep/goat application",
-    date: "2026-04-15",
-    type: "Application",
-  },
-  {
-    id: "d3",
-    state: "Montana",
-    stateCode: "MT",
-    title: "General deer/elk combo",
-    date: "2026-05-01",
-    type: "Application",
-  },
-  {
-    id: "d4",
-    state: "Arizona",
-    stateCode: "AZ",
-    title: "Fall hunt application",
-    date: "2026-06-10",
-    type: "Application",
-  },
-];
-
-const mockActions = [
-  {
-    id: "a1",
-    title: "Submit Colorado elk application",
-    description:
-      "Apply for Unit 61 elk with your 3 preference points. First choice rifle, second choice archery.",
-    type: "application" as const,
-    priority: "urgent" as const,
-    dueDate: "2026-04-01",
-    actionUrl: "https://cpw.state.co.us",
-  },
-  {
-    id: "a2",
-    title: "Purchase Wyoming preference point",
-    description:
-      "Buy your annual elk preference point to maintain your position in the draw.",
-    type: "points" as const,
-    priority: "high" as const,
-    dueDate: "2026-04-30",
-  },
-  {
-    id: "a3",
-    title: "Review Montana draw results",
-    description:
-      "Montana general deer/elk results are out. Check your status.",
-    type: "general" as const,
-    priority: "medium" as const,
-  },
-  {
-    id: "a4",
-    title: "Update preference point totals",
-    description:
-      "Your point balances may have changed after this year's draws. Update them for accurate predictions.",
-    type: "points" as const,
-    priority: "low" as const,
-  },
-];
+interface DashboardData {
+  userName: string;
+  alerts: { id: string; type: "urgent" | "info" | "success"; message: string; ctaLabel?: string; ctaHref?: string }[];
+  deadlines: { id: string; state: string; stateCode: string; title: string; date: string; type: string }[];
+  actions: { id: string; title: string; description?: string; type: "deadline" | "application" | "points" | "general"; priority: "urgent" | "high" | "medium" | "low"; dueDate?: string; actionUrl?: string; completed?: boolean }[];
+  strategy: {
+    statesActive: number;
+    speciesTracked: number;
+    pointsBuilding: number;
+    nextDeadline: string | null;
+    playbookExists: boolean;
+    playbookStale: boolean;
+    lastUpdated: string | null;
+  };
+}
 
 export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
-  const [userName] = useState("Hunter");
+  const [data, setData] = useState<DashboardData | null>(null);
+
+  const fetchDashboard = useCallback(async () => {
+    try {
+      // Fetch session first to get user name
+      const [sessionRes, deadlinesRes, actionsRes, recsRes, profileRes] = await Promise.all([
+        apiClient.get<{ authenticated: boolean; user?: { name?: string; id?: string } }>("/auth/session"),
+        apiClient.get<{ deadlines: { id: string; stateName: string; stateCode: string; title: string; deadlineDate: string; deadlineType: string }[] }>("/deadlines?upcoming=true"),
+        apiClient.get<{ actions: { id: string; title: string; description?: string; actionType: string; priority: string; dueDate?: string; metadata?: { actionUrl?: string }; status?: string }[] }>("/actions"),
+        apiClient.get<{ recommendations: { id: string; stateCode?: string; speciesSlug?: string }[]; playbookId?: string }>("/recommendations"),
+        apiClient.get<{ data: { pointHoldings?: { stateCode: string; points: number }[] } }>("/profile"),
+      ]);
+
+      const userName = sessionRes.data?.user?.name?.split(" ")[0] || "Hunter";
+
+      // Map deadlines to component shape
+      const deadlines = (deadlinesRes.data?.deadlines ?? []).map((d) => ({
+        id: d.id,
+        state: d.stateName ?? "",
+        stateCode: d.stateCode ?? "",
+        title: d.title,
+        date: d.deadlineDate,
+        type: d.deadlineType ?? "Application",
+      }));
+
+      // Generate alerts from upcoming deadlines (within 7 days = urgent)
+      const now = Date.now();
+      const sevenDays = 7 * 24 * 60 * 60 * 1000;
+      const alerts = deadlines
+        .filter((d) => {
+          const diff = new Date(d.date).getTime() - now;
+          return diff > 0 && diff < sevenDays;
+        })
+        .map((d) => ({
+          id: `alert-${d.id}`,
+          type: "urgent" as const,
+          message: `${d.state} ${d.title} deadline in ${Math.ceil((new Date(d.date).getTime() - now) / (24 * 60 * 60 * 1000))} days`,
+          ctaLabel: "View",
+          ctaHref: "/calendar",
+        }));
+
+      // Map actions to component shape
+      const priorityMap: Record<string, "urgent" | "high" | "medium" | "low"> = {
+        critical: "urgent",
+        high: "high",
+        medium: "medium",
+        low: "low",
+      };
+      const typeMap: Record<string, "deadline" | "application" | "points" | "general"> = {
+        apply: "application",
+        buy_points: "points",
+        complete_application: "application",
+        verify_hunter_ed: "general",
+        review_strategy: "general",
+      };
+      const actions = (actionsRes.data?.actions ?? []).map((a) => ({
+        id: a.id,
+        title: a.title,
+        description: a.description,
+        type: typeMap[a.actionType] ?? ("general" as const),
+        priority: priorityMap[a.priority] ?? ("medium" as const),
+        dueDate: a.dueDate ?? undefined,
+        actionUrl: (a.metadata as Record<string, string> | undefined)?.actionUrl,
+        completed: a.status === "completed",
+      }));
+
+      // Derive strategy snapshot
+      const recs = recsRes.data?.recommendations ?? [];
+      const uniqueStates = new Set(recs.map((r) => r.stateCode).filter(Boolean));
+      const uniqueSpecies = new Set(recs.map((r) => r.speciesSlug).filter(Boolean));
+      const pointHoldings = profileRes.data?.data?.pointHoldings ?? [];
+      const totalPoints = Array.isArray(pointHoldings)
+        ? pointHoldings.reduce((sum: number, p: { points: number }) => sum + (p.points ?? 0), 0)
+        : 0;
+      const nextDeadline = deadlines.length > 0 ? deadlines[0]!.date : null;
+
+      setData({
+        userName,
+        alerts,
+        deadlines,
+        actions,
+        strategy: {
+          statesActive: uniqueStates.size,
+          speciesTracked: uniqueSpecies.size,
+          pointsBuilding: totalPoints,
+          nextDeadline,
+          playbookExists: !!recsRes.data?.playbookId,
+          playbookStale: false,
+          lastUpdated: null,
+        },
+      });
+    } catch (error) {
+      console.error("[dashboard] Failed to load:", error);
+      // Graceful degradation — show empty state
+      setData({
+        userName: "Hunter",
+        alerts: [],
+        deadlines: [],
+        actions: [],
+        strategy: {
+          statesActive: 0,
+          speciesTracked: 0,
+          pointsBuilding: 0,
+          nextDeadline: null,
+          playbookExists: false,
+          playbookStale: false,
+          lastUpdated: null,
+        },
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    // Simulate data loading
-    const timer = setTimeout(() => setIsLoading(false), 600);
-    return () => clearTimeout(timer);
-  }, []);
+    fetchDashboard();
+  }, [fetchDashboard]);
+
+  const handleCompleteAction = async (actionId: string) => {
+    await apiClient.post("/actions", { actionId, status: "completed" });
+    fetchDashboard();
+  };
 
   const now = new Date();
   const greeting = now.getHours() < 12 ? "Good morning" : now.getHours() < 18 ? "Good afternoon" : "Good evening";
@@ -116,7 +157,7 @@ export default function DashboardPage() {
     day: "numeric",
   });
 
-  if (isLoading) {
+  if (isLoading || !data) {
     return (
       <div className="space-y-6">
         <div>
@@ -133,30 +174,22 @@ export default function DashboardPage() {
       {/* Greeting */}
       <div>
         <h1 className="text-2xl font-bold text-brand-bark dark:text-brand-cream">
-          {greeting}, {userName}
+          {greeting}, {data.userName}
         </h1>
         <p className="mt-0.5 text-sm text-brand-sage">{dateStr}</p>
       </div>
 
       {/* Alerts */}
-      <AlertBanner alerts={mockAlerts} />
+      <AlertBanner alerts={data.alerts} />
 
       {/* Strategy + Deadlines grid */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <StrategySnapshot
-          statesActive={4}
-          speciesTracked={3}
-          pointsBuilding={12}
-          nextDeadline="2026-04-01"
-          playbookExists={true}
-          playbookStale={false}
-          lastUpdated="2026-03-01"
-        />
-        <DeadlineWidget deadlines={mockDeadlines} />
+        <StrategySnapshot {...data.strategy} />
+        <DeadlineWidget deadlines={data.deadlines} />
       </div>
 
       {/* Action Feed */}
-      <ActionFeed actions={mockActions} />
+      <ActionFeed actions={data.actions} onComplete={handleCompleteAction} />
     </div>
   );
 }
