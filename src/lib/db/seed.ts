@@ -11,6 +11,7 @@ import {
   states,
   species,
   stateSpecies,
+  dataSources,
   aiPrompts,
   appConfig,
 } from "./schema";
@@ -37,7 +38,7 @@ async function seed() {
   // --------------------------------------------------------------------------
   // 1. STATES — All 50 US states
   // --------------------------------------------------------------------------
-  console.log("[1/5] Seeding states...");
+  console.log("[1/6] Seeding states...");
 
   const allStates = [
     // Western draw states (primary focus)
@@ -117,7 +118,7 @@ async function seed() {
   // --------------------------------------------------------------------------
   // 2. SPECIES — Core hunting species
   // --------------------------------------------------------------------------
-  console.log("[2/5] Seeding species...");
+  console.log("[2/6] Seeding species...");
 
   const allSpecies = [
     { slug: "elk", commonName: "Elk", scientificName: "Cervus canadensis", category: "big_game", config: {}, enabled: true },
@@ -155,7 +156,7 @@ async function seed() {
   // --------------------------------------------------------------------------
   // 3. STATE-SPECIES MAPPINGS — Top 12 western draw states
   // --------------------------------------------------------------------------
-  console.log("[3/5] Seeding state-species mappings...");
+  console.log("[3/6] Seeding state-species mappings...");
 
   const sid = (code: string) => stateMap.get(code)!;
   const spid = (slug: string) => speciesMap.get(slug)!;
@@ -294,9 +295,321 @@ async function seed() {
   console.log(`  -> ${insertedStateSpecies.length} state-species mappings inserted (${stateSpeciesMappings.length} total)`);
 
   // --------------------------------------------------------------------------
-  // 4. AI PROMPTS — Default prompt templates
+  // 4. DATA SOURCES — Priority state ingestion sources (AZ, CO, WY)
   // --------------------------------------------------------------------------
-  console.log("[4/5] Seeding AI prompts...");
+  console.log("[4/6] Seeding data sources...");
+
+  const priorityDataSources = [
+    // ====================================================================
+    // ARIZONA GAME & FISH DEPARTMENT (AZGFD)
+    // ====================================================================
+    {
+      name: "AZGFD Draw Odds & Statistics",
+      sourceType: "draw_report",
+      authorityTier: 1,
+      url: "https://www.azgfd.com/hunting/draw-information/",
+      scraperConfig: {
+        adapter: "web_scraper",
+        base_url: "https://www.azgfd.com",
+        endpoints: [
+          {
+            path: "/hunting/draw-information/draw-statistics/",
+            parser: "draw_odds_table",
+            params: {},
+            schedule: "0 6 * * 1",
+            doc_type: "draw_report",
+            selectors: { table: "table.draw-stats" },
+          },
+          {
+            path: "/hunting/draw-information/bonus-point-report/",
+            parser: "draw_odds_table",
+            params: {},
+            schedule: "0 6 1 * *",
+            doc_type: "draw_report",
+          },
+        ],
+        rate_limit: { requests_per_minute: 10 },
+        retry: { max_attempts: 3, backoff_ms: 5000 },
+        state_code: "AZ",
+        species_slugs: ["elk", "mule_deer", "pronghorn", "bighorn_sheep", "javelina", "turkey", "bison"],
+        timeout_ms: 30000,
+      },
+      refreshCadence: "weekly",
+      status: "active",
+      enabled: true,
+    },
+    {
+      name: "AZGFD Harvest Reports",
+      sourceType: "harvest_report",
+      authorityTier: 1,
+      url: "https://www.azgfd.com/hunting/harvest-information/",
+      scraperConfig: {
+        adapter: "pdf_download",
+        base_url: "https://www.azgfd.com",
+        endpoints: [
+          {
+            path: "/hunting/harvest-information/big-game-harvest/",
+            parser: "harvest_report",
+            params: {},
+            schedule: "0 6 1 * *",
+            doc_type: "harvest_report",
+          },
+        ],
+        rate_limit: { requests_per_minute: 5 },
+        retry: { max_attempts: 3, backoff_ms: 10000 },
+        state_code: "AZ",
+        species_slugs: ["elk", "mule_deer", "pronghorn", "bighorn_sheep"],
+        timeout_ms: 60000,
+      },
+      refreshCadence: "monthly",
+      status: "active",
+      enabled: true,
+    },
+    {
+      name: "AZGFD Hunting Regulations",
+      sourceType: "state_agency",
+      authorityTier: 1,
+      url: "https://www.azgfd.com/hunting/regulations/",
+      scraperConfig: {
+        adapter: "web_scraper",
+        base_url: "https://www.azgfd.com",
+        endpoints: [
+          {
+            path: "/hunting/regulations/",
+            parser: "season_dates",
+            params: {},
+            schedule: "0 6 * * 1",
+            doc_type: "regulation",
+          },
+          {
+            path: "/hunting/regulations/big-game-seasons/",
+            parser: "season_dates",
+            params: {},
+            schedule: "0 6 * * 1",
+            doc_type: "season_summary",
+          },
+        ],
+        rate_limit: { requests_per_minute: 10 },
+        retry: { max_attempts: 3, backoff_ms: 5000 },
+        state_code: "AZ",
+        species_slugs: ["elk", "mule_deer", "pronghorn"],
+        timeout_ms: 30000,
+      },
+      refreshCadence: "weekly",
+      status: "active",
+      enabled: true,
+    },
+
+    // ====================================================================
+    // COLORADO PARKS & WILDLIFE (CPW)
+    // ====================================================================
+    {
+      name: "CPW Draw Results & Statistics",
+      sourceType: "draw_report",
+      authorityTier: 1,
+      url: "https://cpw.state.co.us/thingstodo/Pages/BigGameStatistics.aspx",
+      scraperConfig: {
+        adapter: "web_scraper",
+        base_url: "https://cpw.state.co.us",
+        endpoints: [
+          {
+            path: "/thingstodo/Pages/BigGameStatistics.aspx",
+            parser: "draw_odds_table",
+            params: {},
+            schedule: "0 6 * * 1",
+            doc_type: "draw_report",
+          },
+          {
+            path: "/thingstodo/Pages/BigGameApplicantStatistics.aspx",
+            parser: "draw_odds_table",
+            params: {},
+            schedule: "0 6 * * 1",
+            doc_type: "draw_report",
+          },
+        ],
+        rate_limit: { requests_per_minute: 10 },
+        retry: { max_attempts: 3, backoff_ms: 5000 },
+        state_code: "CO",
+        species_slugs: ["elk", "mule_deer", "pronghorn", "moose", "bighorn_sheep", "mountain_goat"],
+        timeout_ms: 30000,
+      },
+      refreshCadence: "weekly",
+      status: "active",
+      enabled: true,
+    },
+    {
+      name: "CPW Harvest Reports",
+      sourceType: "harvest_report",
+      authorityTier: 1,
+      url: "https://cpw.state.co.us/thingstodo/Pages/BigGameHarvest.aspx",
+      scraperConfig: {
+        adapter: "web_scraper",
+        base_url: "https://cpw.state.co.us",
+        endpoints: [
+          {
+            path: "/thingstodo/Pages/BigGameHarvest.aspx",
+            parser: "harvest_report",
+            params: {},
+            schedule: "0 6 1 * *",
+            doc_type: "harvest_report",
+          },
+        ],
+        rate_limit: { requests_per_minute: 10 },
+        retry: { max_attempts: 3, backoff_ms: 5000 },
+        state_code: "CO",
+        species_slugs: ["elk", "mule_deer", "pronghorn", "moose", "bighorn_sheep", "mountain_goat"],
+        timeout_ms: 30000,
+      },
+      refreshCadence: "monthly",
+      status: "active",
+      enabled: true,
+    },
+    {
+      name: "CPW Season Dates & Regulations",
+      sourceType: "state_agency",
+      authorityTier: 1,
+      url: "https://cpw.state.co.us/thingstodo/Pages/BigGameSeasonDates.aspx",
+      scraperConfig: {
+        adapter: "web_scraper",
+        base_url: "https://cpw.state.co.us",
+        endpoints: [
+          {
+            path: "/thingstodo/Pages/BigGameSeasonDates.aspx",
+            parser: "season_dates",
+            params: {},
+            schedule: "0 6 * * 1",
+            doc_type: "season_summary",
+          },
+          {
+            path: "/thingstodo/Pages/BigGameBrochure.aspx",
+            parser: "regulation_text",
+            params: {},
+            schedule: "0 6 1 1 *",
+            doc_type: "regulation",
+          },
+        ],
+        rate_limit: { requests_per_minute: 10 },
+        retry: { max_attempts: 3, backoff_ms: 5000 },
+        state_code: "CO",
+        species_slugs: ["elk", "mule_deer", "pronghorn"],
+        timeout_ms: 30000,
+      },
+      refreshCadence: "weekly",
+      status: "active",
+      enabled: true,
+    },
+
+    // ====================================================================
+    // WYOMING GAME & FISH DEPARTMENT (WGFD)
+    // ====================================================================
+    {
+      name: "WGFD Draw Results & Odds",
+      sourceType: "draw_report",
+      authorityTier: 1,
+      url: "https://wgfd.wyo.gov/apply-or-buy/draw-results",
+      scraperConfig: {
+        adapter: "web_scraper",
+        base_url: "https://wgfd.wyo.gov",
+        endpoints: [
+          {
+            path: "/apply-or-buy/draw-results",
+            parser: "draw_odds_table",
+            params: {},
+            schedule: "0 6 * * 1",
+            doc_type: "draw_report",
+          },
+          {
+            path: "/apply-or-buy/preference-points-summary",
+            parser: "draw_odds_table",
+            params: {},
+            schedule: "0 6 1 * *",
+            doc_type: "draw_report",
+          },
+        ],
+        rate_limit: { requests_per_minute: 8 },
+        retry: { max_attempts: 3, backoff_ms: 5000 },
+        state_code: "WY",
+        species_slugs: ["elk", "mule_deer", "whitetail", "pronghorn", "moose", "bighorn_sheep", "mountain_goat", "bison"],
+        timeout_ms: 30000,
+      },
+      refreshCadence: "weekly",
+      status: "active",
+      enabled: true,
+    },
+    {
+      name: "WGFD Harvest Reports",
+      sourceType: "harvest_report",
+      authorityTier: 1,
+      url: "https://wgfd.wyo.gov/hunting/harvest-data",
+      scraperConfig: {
+        adapter: "pdf_download",
+        base_url: "https://wgfd.wyo.gov",
+        endpoints: [
+          {
+            path: "/WGFD/SI/Hunting/Harvest-Reports/BigGame",
+            parser: "harvest_report",
+            params: {},
+            schedule: "0 6 1 * *",
+            doc_type: "harvest_report",
+          },
+        ],
+        rate_limit: { requests_per_minute: 5 },
+        retry: { max_attempts: 3, backoff_ms: 10000 },
+        state_code: "WY",
+        species_slugs: ["elk", "mule_deer", "pronghorn", "moose", "bighorn_sheep"],
+        timeout_ms: 60000,
+      },
+      refreshCadence: "monthly",
+      status: "active",
+      enabled: true,
+    },
+    {
+      name: "WGFD Season Dates & Regulations",
+      sourceType: "state_agency",
+      authorityTier: 1,
+      url: "https://wgfd.wyo.gov/regulations/regulation-pdfs",
+      scraperConfig: {
+        adapter: "web_scraper",
+        base_url: "https://wgfd.wyo.gov",
+        endpoints: [
+          {
+            path: "/hunting/season-dates",
+            parser: "season_dates",
+            params: {},
+            schedule: "0 6 * * 1",
+            doc_type: "season_summary",
+          },
+          {
+            path: "/regulations/regulation-pdfs",
+            parser: "regulation_text",
+            params: {},
+            schedule: "0 6 1 1 *",
+            doc_type: "regulation",
+          },
+        ],
+        rate_limit: { requests_per_minute: 8 },
+        retry: { max_attempts: 3, backoff_ms: 5000 },
+        state_code: "WY",
+        species_slugs: ["elk", "mule_deer", "pronghorn"],
+        timeout_ms: 30000,
+      },
+      refreshCadence: "weekly",
+      status: "active",
+      enabled: true,
+    },
+  ];
+
+  const insertedDataSources = await db
+    .insert(dataSources)
+    .values(priorityDataSources)
+    .onConflictDoNothing()
+    .returning();
+  console.log(`  -> ${insertedDataSources.length} data sources inserted (${priorityDataSources.length} total)`);
+
+  // --------------------------------------------------------------------------
+  // 5. AI PROMPTS — Default prompt templates
+  // --------------------------------------------------------------------------
+  console.log("[5/6] Seeding AI prompts...");
 
   const defaultPrompts = [
     {
@@ -449,9 +762,9 @@ Total Recommendations: {{rec_count}}`,
   console.log(`  -> ${insertedPrompts.length} AI prompts inserted (${defaultPrompts.length} total)`);
 
   // --------------------------------------------------------------------------
-  // 5. APP CONFIG — Default configuration
+  // 6. APP CONFIG — Default configuration
   // --------------------------------------------------------------------------
-  console.log("[5/5] Seeding app config...");
+  console.log("[6/6] Seeding app config...");
 
   const defaultConfigs = [
     {
@@ -520,6 +833,7 @@ Total Recommendations: {{rec_count}}`,
   console.log(`  States:               ${allStates.length}`);
   console.log(`  Species:              ${allSpecies.length}`);
   console.log(`  State-Species:        ${stateSpeciesMappings.length}`);
+  console.log(`  Data Sources:         ${priorityDataSources.length}`);
   console.log(`  AI Prompts:           ${defaultPrompts.length}`);
   console.log(`  App Config:           ${defaultConfigs.length}`);
   console.log("=== Seed complete ===\n");

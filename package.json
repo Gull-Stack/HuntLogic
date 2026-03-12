@@ -15,6 +15,7 @@
     "db:validate": "tsx src/lib/db/validate.ts",
     "db:studio": "drizzle-kit studio",
     "db:reset": "docker compose down -v postgres && bash scripts/db-setup.sh",
+    "ingestion:start": "tsx src/services/ingestion/start.ts",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
@@ -47,7 +48,8 @@
     "recharts": "^2.15.0",
     "maplibre-gl": "^5.0.0",
     "react-map-gl": "^7.1.8",
-    "@minio/minio-js": "^8.0.0",
+    "bullmq": "^5.34.0",
+    "minio": "^8.0.0",
     "sharp": "^0.33.0"
   },
   "devDependencies": {
