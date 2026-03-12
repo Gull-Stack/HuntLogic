@@ -1,0 +1,26 @@
+{
+  "name": "HuntLogic Concierge",
+  "short_name": "HuntLogic",
+  "description": "Your AI-powered hunting intelligence platform. Personalized recommendations, draw odds analysis, and strategic playbooks.",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#1B4332",
+  "background_color": "#F4F1DE",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["lifestyle", "sports"]
+}

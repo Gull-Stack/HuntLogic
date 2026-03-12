@@ -1,5 +1,12 @@
 import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
+
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+});
 
 export const metadata: Metadata = {
   title: {
@@ -17,6 +24,8 @@ export const metadata: Metadata = {
     "elk hunting",
     "deer hunting",
     "western hunting",
+    "preference points",
+    "hunting concierge",
   ],
   authors: [{ name: "HuntLogic" }],
   creator: "HuntLogic",
@@ -29,7 +38,7 @@ export const metadata: Metadata = {
     siteName: "HuntLogic Concierge",
     title: "HuntLogic Concierge — AI-Powered Hunting Intelligence",
     description:
-      "Personalized hunt planning, draw odds analysis, and strategic recommendations powered by AI.",
+      "Personalized hunt planning, draw odds analysis, and strategic recommendations powered by AI. Never miss a hunt again.",
   },
   twitter: {
     card: "summary_large_image",
@@ -41,6 +50,14 @@ export const metadata: Metadata = {
   icons: {
     icon: "/favicon.ico",
     apple: "/apple-touch-icon.png",
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "HuntLogic",
+  },
+  formatDetection: {
+    telephone: false,
   },
 };
 
@@ -62,7 +79,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={inter.variable}>
+      <head>
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta
+          name="apple-mobile-web-app-status-bar-style"
+          content="black-translucent"
+        />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+      </head>
       <body className="min-h-screen bg-brand-cream font-sans text-brand-bark antialiased dark:bg-brand-forest dark:text-brand-cream">
         {children}
       </body>
