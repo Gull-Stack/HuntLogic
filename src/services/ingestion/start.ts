@@ -5,7 +5,27 @@
 // Starts all workers, scheduler, and handles graceful shutdown.
 // =============================================================================
 
-import { startIngestionService, stopIngestionService } from "./index";
+import { startIngestionService, stopIngestionService, triggerSource } from "./index";
+import { db } from "../../lib/db";
+import { dataSources } from "../../lib/db/schema";
+import { eq } from "drizzle-orm";
+
+async function triggerAllSources() {
+  const sources = await db
+    .select({ id: dataSources.id, name: dataSources.name })
+    .from(dataSources)
+    .where(eq(dataSources.enabled, true));
+
+  console.log(`[startup] Triggering ${sources.length} sources...`);
+  for (const s of sources) {
+    try {
+      await triggerSource(s.id);
+      console.log(`[startup]   ✓ ${s.name}`);
+    } catch (e: any) {
+      console.log(`[startup]   ✗ ${s.name} — ${e.message}`);
+    }
+  }
+}
 
 async function main() {
   console.log("HuntLogic Ingestion Service starting...\n");
@@ -23,6 +43,12 @@ async function main() {
   try {
     await startIngestionService();
     console.log("\nIngestion service is running. Press Ctrl+C to stop.\n");
+
+    // Trigger all sources on deploy when TRIGGER_ON_DEPLOY=true
+    if (process.env.TRIGGER_ON_DEPLOY === "true") {
+      console.log("[startup] TRIGGER_ON_DEPLOY=true — firing immediate ingestion...");
+      await triggerAllSources();
+    }
   } catch (error) {
     console.error("Failed to start ingestion service:", error);
     process.exit(1);
