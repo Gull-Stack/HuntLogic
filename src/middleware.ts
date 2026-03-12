@@ -17,7 +17,15 @@ const PUBLIC_ROUTES = new Set([
 ]);
 
 // Path prefixes that are always public
-const PUBLIC_PREFIXES = ["/api/auth", "/api/health", "/_next", "/favicon"];
+const PUBLIC_PREFIXES = [
+  "/api/auth",
+  "/api/health",
+  "/api/v1/deadlines",
+  "/api/v1/regulations",
+  "/api/v1/ingestion/trigger",
+  "/_next",
+  "/favicon",
+];
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;

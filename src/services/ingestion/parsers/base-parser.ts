@@ -3,8 +3,10 @@
 // =============================================================================
 // All parsers extend this class. Parser selection is config-driven from
 // the endpoint's `parser` field in scraper_config JSONB.
+// Uses cheerio for robust DOM-based HTML extraction.
 // =============================================================================
 
+import * as cheerio from "cheerio";
 import type { ParserName, ParserConfig, ParsedResult } from "../types";
 
 export abstract class BaseParser {
@@ -33,9 +35,6 @@ export abstract class BaseParser {
       .trim();
   }
 
-  /**
-   * Clean a cell value from a table: trim, remove special chars, normalize
-   */
   protected cleanCell(value: string): string {
     return value
       .replace(/\u00a0/g, " ") // non-breaking spaces
@@ -46,64 +45,113 @@ export abstract class BaseParser {
   }
 
   // -------------------------------------------------------------------------
-  // HTML table extraction helper
+  // HTML table extraction (cheerio-based)
   // -------------------------------------------------------------------------
 
   /**
-   * Extract a table from HTML as a 2D string array.
-   * Uses regex-based parsing (no DOM dependency for server-side).
-   * For complex HTML, consider cheerio or jsdom in production.
+   * Extract a table from HTML as a 2D string array using cheerio.
+   * Supports full CSS selectors, handles <th> data cells, colspan/rowspan,
+   * and nested elements that regex-based parsing misses.
    */
   extractTable(html: string, selector?: string): string[][] {
+    const $ = cheerio.load(html);
     const rows: string[][] = [];
 
-    // Find all table content — if selector provided, try to narrow down
-    // (basic selector support: tagname, #id, .class)
-    let tableHtml = html;
-    if (selector) {
-      const tableMatch = this.findElementBySelector(html, selector);
-      if (tableMatch) {
-        tableHtml = tableMatch;
-      }
+    // Find the target table
+    const tableSelector = selector || "table";
+    const $table = $(tableSelector).first();
+
+    if ($table.length === 0) {
+      // Fallback: if no table found with selector, try first table on page
+      const $fallback = $("table").first();
+      if ($fallback.length === 0) return rows;
+      return this.extractTableFromElement($, $fallback);
     }
 
-    // Extract <tr> rows
-    const trPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-    let trMatch: RegExpExecArray | null;
+    return this.extractTableFromElement($, $table);
+  }
 
-    while ((trMatch = trPattern.exec(tableHtml)) !== null) {
-      const rowHtml = trMatch[1];
+  /**
+   * Extract ALL tables from HTML. Useful when data spans multiple tables
+   * (e.g., one per species or region).
+   */
+  extractAllTables(html: string, selector?: string): string[][][] {
+    const $ = cheerio.load(html);
+    const tables: string[][][] = [];
+    const tableSelector = selector || "table";
+
+    $(tableSelector).each((_, tableEl) => {
+      const tableData = this.extractTableFromElement($, $(tableEl));
+      if (tableData.length > 0) {
+        tables.push(tableData);
+      }
+    });
+
+    return tables;
+  }
+
+  private extractTableFromElement(
+    $: cheerio.CheerioAPI,
+    $table: cheerio.Cheerio<cheerio.Element>
+  ): string[][] {
+    const rows: string[][] = [];
+
+    $table.find("tr").each((_, tr) => {
       const cells: string[] = [];
 
-      // Extract <td> and <th> cells
-      const cellPattern = /<(?:td|th)[^>]*>([\s\S]*?)<\/(?:td|th)>/gi;
-      let cellMatch: RegExpExecArray | null;
-
-      while ((cellMatch = cellPattern.exec(rowHtml)) !== null) {
-        // Strip inner HTML tags, keep text
-        const text = cellMatch[1]
-          .replace(/<[^>]+>/g, "")
-          .replace(/&nbsp;/g, " ")
-          .replace(/&amp;/g, "&")
-          .replace(/&lt;/g, "<")
-          .replace(/&gt;/g, ">")
-          .replace(/&#(\d+);/g, (_match, code) =>
-            String.fromCharCode(parseInt(code, 10))
-          );
-        cells.push(this.cleanCell(text));
-      }
+      $(tr)
+        .find("td, th")
+        .each((_, cell) => {
+          const text = $(cell).text();
+          cells.push(this.cleanCell(text));
+        });
 
       if (cells.length > 0) {
         rows.push(cells);
       }
-    }
+    });
 
     return rows;
   }
 
+  // -------------------------------------------------------------------------
+  // Cheerio helpers for subclasses
+  // -------------------------------------------------------------------------
+
   /**
-   * Parse CSV content into a 2D string array.
+   * Load HTML and return a cheerio instance for direct DOM querying.
    */
+  protected loadHtml(html: string): cheerio.CheerioAPI {
+    return cheerio.load(html);
+  }
+
+  /**
+   * Extract all links matching a pattern from HTML.
+   * Useful for finding PDF download links on state agency pages.
+   */
+  protected extractLinks(
+    html: string,
+    pattern?: RegExp
+  ): Array<{ text: string; href: string }> {
+    const $ = cheerio.load(html);
+    const links: Array<{ text: string; href: string }> = [];
+
+    $("a[href]").each((_, el) => {
+      const href = $(el).attr("href") || "";
+      const text = this.cleanCell($(el).text());
+
+      if (!pattern || pattern.test(href) || pattern.test(text)) {
+        links.push({ text, href });
+      }
+    });
+
+    return links;
+  }
+
+  // -------------------------------------------------------------------------
+  // CSV parsing
+  // -------------------------------------------------------------------------
+
   protected parseCsv(content: string, delimiter: string = ","): string[][] {
     const lines = content.split("\n").filter((line) => line.trim().length > 0);
     return lines.map((line) => {
@@ -157,52 +205,5 @@ export abstract class BaseParser {
     if (num === undefined) return undefined;
     // If it looks like a percentage (> 1), convert to 0-1 range
     return num > 1 ? num / 100 : num;
-  }
-
-  // -------------------------------------------------------------------------
-  // Basic element finder (simple CSS selector support)
-  // -------------------------------------------------------------------------
-
-  private findElementBySelector(
-    html: string,
-    selector: string
-  ): string | null {
-    // Simple selectors: table, table.classname, table#id, #id, .class
-    let pattern: RegExp;
-
-    if (selector.startsWith("#")) {
-      const id = selector.slice(1);
-      pattern = new RegExp(
-        `<(\\w+)[^>]*id=["']${id}["'][^>]*>([\\s\\S]*?)<\\/\\1>`,
-        "i"
-      );
-    } else if (selector.startsWith(".")) {
-      const cls = selector.slice(1);
-      pattern = new RegExp(
-        `<(\\w+)[^>]*class=["'][^"']*${cls}[^"']*["'][^>]*>([\\s\\S]*?)<\\/\\1>`,
-        "i"
-      );
-    } else if (selector.includes("#")) {
-      const [tag, id] = selector.split("#");
-      pattern = new RegExp(
-        `<${tag}[^>]*id=["']${id}["'][^>]*>([\\s\\S]*?)<\\/${tag}>`,
-        "i"
-      );
-    } else if (selector.includes(".")) {
-      const [tag, cls] = selector.split(".");
-      pattern = new RegExp(
-        `<${tag}[^>]*class=["'][^"']*${cls}[^"']*["'][^>]*>([\\s\\S]*?)<\\/${tag}>`,
-        "i"
-      );
-    } else {
-      // Just a tag name — return first instance
-      pattern = new RegExp(
-        `<${selector}[^>]*>([\\s\\S]*?)<\\/${selector}>`,
-        "i"
-      );
-    }
-
-    const match = pattern.exec(html);
-    return match ? match[0] : null;
   }
 }
