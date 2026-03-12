@@ -3,32 +3,21 @@ import {
   pgTable,
   uuid,
   text,
-  varchar,
   timestamp,
   integer,
-  doublePrecision,
+  real,
   jsonb,
   date,
   uniqueIndex,
-  pgEnum,
+  index,
 } from "drizzle-orm/pg-core";
 import { states, species, huntUnits } from "./hunting";
+import { dataSources } from "./data-sources";
 
-// Enums
-export const weaponTypeEnum = pgEnum("weapon_type", [
-  "rifle",
-  "archery",
-  "muzzleloader",
-  "shotgun",
-  "any",
-]);
+// ========================
+// DRAW ODDS (historical, per unit/species/state/year)
+// ========================
 
-export const residencyEnum = pgEnum("residency", [
-  "resident",
-  "nonresident",
-]);
-
-// Draw Odds — historical draw odds data
 export const drawOdds = pgTable(
   "draw_odds",
   {
@@ -43,19 +32,22 @@ export const drawOdds = pgTable(
       onDelete: "set null",
     }),
     year: integer("year").notNull(),
-    weaponType: weaponTypeEnum("weapon_type").notNull(),
-    residency: residencyEnum("residency").notNull(),
-    choiceNumber: integer("choice_number").default(1),
-    pointsRequired: integer("points_required"),
+    residentType: text("resident_type").notNull(), // 'resident' | 'nonresident'
+    weaponType: text("weapon_type"),
+    choiceRank: integer("choice_rank"), // 1st, 2nd, etc.
     totalApplicants: integer("total_applicants"),
     totalTags: integer("total_tags"),
-    drawRate: doublePrecision("draw_rate"), // 0.0 to 1.0
-    pointsToGuarantee: integer("points_to_guarantee"),
-    pointsToFiftyPercent: integer("points_to_fifty_percent"),
-    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+    minPointsDrawn: integer("min_points_drawn"),
+    maxPointsDrawn: integer("max_points_drawn"),
+    avgPointsDrawn: real("avg_points_drawn"),
+    drawRate: real("draw_rate"), // 0.0 to 1.0
+    sourceId: uuid("source_id").references(() => dataSources.id, {
+      onDelete: "set null",
+    }),
+    rawData: jsonb("raw_data").notNull().default({}), // preserve original data shape
     createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+      .notNull()
+      .defaultNow(),
   },
   (table) => [
     uniqueIndex("draw_odds_unique_idx").on(
@@ -63,14 +55,21 @@ export const drawOdds = pgTable(
       table.speciesId,
       table.huntUnitId,
       table.year,
+      table.residentType,
       table.weaponType,
-      table.residency,
-      table.choiceNumber
+      table.choiceRank
     ),
+    index("draw_odds_state_species_idx").on(table.stateId, table.speciesId),
+    index("draw_odds_year_idx").on(table.year),
+    index("draw_odds_hunt_unit_idx").on(table.huntUnitId),
+    index("draw_odds_source_idx").on(table.sourceId),
   ]
 );
 
-// Harvest Stats — historical harvest statistics
+// ========================
+// HARVEST STATS
+// ========================
+
 export const harvestStats = pgTable(
   "harvest_stats",
   {
@@ -85,16 +84,19 @@ export const harvestStats = pgTable(
       onDelete: "set null",
     }),
     year: integer("year").notNull(),
-    weaponType: weaponTypeEnum("weapon_type"),
+    weaponType: text("weapon_type"),
     totalHunters: integer("total_hunters"),
     totalHarvest: integer("total_harvest"),
-    successRate: doublePrecision("success_rate"), // 0.0 to 1.0
-    averageDaysHunted: doublePrecision("average_days_hunted"),
-    matureAnimalPercent: doublePrecision("mature_animal_percent"),
-    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+    successRate: real("success_rate"), // 0.0 to 1.0
+    avgDaysHunted: real("avg_days_hunted"),
+    trophyMetrics: jsonb("trophy_metrics"), // B&C scores, age class data, etc.
+    sourceId: uuid("source_id").references(() => dataSources.id, {
+      onDelete: "set null",
+    }),
+    rawData: jsonb("raw_data").notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+      .notNull()
+      .defaultNow(),
   },
   (table) => [
     uniqueIndex("harvest_stats_unique_idx").on(
@@ -104,63 +106,93 @@ export const harvestStats = pgTable(
       table.year,
       table.weaponType
     ),
+    index("harvest_stats_state_species_idx").on(
+      table.stateId,
+      table.speciesId
+    ),
+    index("harvest_stats_year_idx").on(table.year),
+    index("harvest_stats_hunt_unit_idx").on(table.huntUnitId),
   ]
 );
 
-// Seasons — hunting season definitions
-export const seasons = pgTable("seasons", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  stateId: uuid("state_id")
-    .notNull()
-    .references(() => states.id, { onDelete: "cascade" }),
-  speciesId: uuid("species_id")
-    .notNull()
-    .references(() => species.id, { onDelete: "cascade" }),
-  huntUnitId: uuid("hunt_unit_id").references(() => huntUnits.id, {
-    onDelete: "set null",
-  }),
-  year: integer("year").notNull(),
-  seasonName: varchar("season_name", { length: 255 }).notNull(),
-  weaponType: weaponTypeEnum("weapon_type"),
-  startDate: date("start_date").notNull(),
-  endDate: date("end_date").notNull(),
-  applicationDeadline: date("application_deadline"),
-  totalTags: integer("total_tags"),
-  description: text("description"),
-  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-});
+// ========================
+// SEASONS (dynamic per state/species/year)
+// ========================
 
-// Deadlines — application deadlines and important dates
-export const deadlines = pgTable("deadlines", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  stateId: uuid("state_id")
-    .notNull()
-    .references(() => states.id, { onDelete: "cascade" }),
-  speciesId: uuid("species_id").references(() => species.id, {
-    onDelete: "set null",
-  }),
-  title: varchar("title", { length: 255 }).notNull(),
-  description: text("description"),
-  deadlineDate: date("deadline_date").notNull(),
-  deadlineType: varchar("deadline_type", { length: 50 }).notNull(), // application, point_purchase, results, season_start
-  year: integer("year").notNull(),
-  url: text("url"),
-  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-});
+export const seasons = pgTable(
+  "seasons",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    stateId: uuid("state_id")
+      .notNull()
+      .references(() => states.id, { onDelete: "cascade" }),
+    speciesId: uuid("species_id")
+      .notNull()
+      .references(() => species.id, { onDelete: "cascade" }),
+    huntUnitId: uuid("hunt_unit_id").references(() => huntUnits.id, {
+      onDelete: "set null",
+    }),
+    year: integer("year").notNull(),
+    seasonName: text("season_name"), // 'General Rifle', '1st Archery', etc.
+    weaponType: text("weapon_type"),
+    startDate: date("start_date"),
+    endDate: date("end_date"),
+    tagType: text("tag_type"), // 'draw' | 'otc' | 'leftover'
+    quota: integer("quota"),
+    config: jsonb("config").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("seasons_state_species_idx").on(table.stateId, table.speciesId),
+    index("seasons_year_idx").on(table.year),
+    index("seasons_hunt_unit_idx").on(table.huntUnitId),
+    index("seasons_start_date_idx").on(table.startDate),
+  ]
+);
 
-// Relations
+// ========================
+// DEADLINES (application deadlines and important dates)
+// ========================
+
+export const deadlines = pgTable(
+  "deadlines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    stateId: uuid("state_id")
+      .notNull()
+      .references(() => states.id, { onDelete: "cascade" }),
+    speciesId: uuid("species_id").references(() => species.id, {
+      onDelete: "set null",
+    }),
+    year: integer("year").notNull(),
+    deadlineType: text("deadline_type").notNull(), // 'application' | 'point_purchase' | 'refund' | 'results'
+    title: text("title").notNull(),
+    description: text("description"),
+    deadlineDate: date("deadline_date").notNull(),
+    reminderDaysBefore: jsonb("reminder_days_before")
+      .notNull()
+      .default([30, 14, 7, 3, 1]),
+    url: text("url"), // link to state agency page
+    config: jsonb("config").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("deadlines_state_id_idx").on(table.stateId),
+    index("deadlines_year_idx").on(table.year),
+    index("deadlines_deadline_date_idx").on(table.deadlineDate),
+    index("deadlines_type_idx").on(table.deadlineType),
+    index("deadlines_state_year_idx").on(table.stateId, table.year),
+  ]
+);
+
+// ========================
+// RELATIONS
+// ========================
+
 export const drawOddsRelations = relations(drawOdds, ({ one }) => ({
   state: one(states, {
     fields: [drawOdds.stateId],
@@ -173,6 +205,10 @@ export const drawOddsRelations = relations(drawOdds, ({ one }) => ({
   huntUnit: one(huntUnits, {
     fields: [drawOdds.huntUnitId],
     references: [huntUnits.id],
+  }),
+  source: one(dataSources, {
+    fields: [drawOdds.sourceId],
+    references: [dataSources.id],
   }),
 }));
 
@@ -188,6 +224,10 @@ export const harvestStatsRelations = relations(harvestStats, ({ one }) => ({
   huntUnit: one(huntUnits, {
     fields: [harvestStats.huntUnitId],
     references: [huntUnits.id],
+  }),
+  source: one(dataSources, {
+    fields: [harvestStats.sourceId],
+    references: [dataSources.id],
   }),
 }));
 

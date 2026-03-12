@@ -2,69 +2,69 @@ import {
   pgTable,
   uuid,
   text,
-  varchar,
   timestamp,
+  integer,
+  real,
   boolean,
   jsonb,
-  pgEnum,
   uniqueIndex,
+  index,
 } from "drizzle-orm/pg-core";
 
-// Enums
-export const promptCategoryEnum = pgEnum("prompt_category", [
-  "concierge",
-  "recommendation",
-  "playbook",
-  "analysis",
-  "summarization",
-  "system",
-]);
+// ========================
+// AI PROMPTS (versioned, admin-managed prompt templates)
+// ========================
 
-// AI Prompts — versioned prompt templates
 export const aiPrompts = pgTable(
   "ai_prompts",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    slug: varchar("slug", { length: 100 }).notNull(),
-    category: promptCategoryEnum("category").notNull(),
-    name: varchar("name", { length: 255 }).notNull(),
-    description: text("description"),
-    systemPrompt: text("system_prompt"),
-    userPromptTemplate: text("user_prompt_template").notNull(),
-    model: varchar("model", { length: 100 }),
-    maxTokens: jsonb("max_tokens").$type<number>(),
-    temperature: jsonb("temperature").$type<number>(),
-    isActive: boolean("is_active").default(true).notNull(),
-    version: varchar("version", { length: 20 }).default("1.0.0").notNull(),
-    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+    slug: text("slug").notNull().unique(), // 'onboarding_welcome', 'strategy_summary', etc.
+    name: text("name").notNull(),
+    category: text("category"), // 'onboarding' | 'recommendation' | 'playbook' | 'chat' | 'notification' | 'explanation'
+    template: text("template").notNull(),
+    variables: jsonb("variables").notNull().default([]), // expected template variables
+    model: text("model").notNull().default("claude-sonnet-4-6"),
+    maxTokens: integer("max_tokens").notNull().default(4096),
+    temperature: real("temperature").notNull().default(0.7),
+    version: integer("version").notNull().default(1),
+    active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+      .notNull()
+      .defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+      .notNull()
+      .defaultNow(),
   },
   (table) => [
-    uniqueIndex("ai_prompts_slug_version_idx").on(table.slug, table.version),
+    index("ai_prompts_slug_idx").on(table.slug),
+    index("ai_prompts_category_idx").on(table.category),
+    index("ai_prompts_active_idx").on(table.active),
   ]
 );
 
-// App Config — key-value configuration store
+// ========================
+// APP CONFIG (dynamic key-value configuration store)
+// ========================
+
 export const appConfig = pgTable(
   "app_config",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    key: varchar("key", { length: 255 }).notNull(),
+    namespace: text("namespace").notNull(), // 'onboarding', 'recommendations', 'notifications', 'scraping'
+    key: text("key").notNull(),
     value: jsonb("value").notNull(),
     description: text("description"),
-    isSecret: boolean("is_secret").default(false).notNull(),
-    category: varchar("category", { length: 100 }),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+    updatedBy: text("updated_by"),
     updatedAt: timestamp("updated_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+      .notNull()
+      .defaultNow(),
   },
-  (table) => [uniqueIndex("app_config_key_idx").on(table.key)]
+  (table) => [
+    uniqueIndex("app_config_namespace_key_idx").on(
+      table.namespace,
+      table.key
+    ),
+    index("app_config_namespace_idx").on(table.namespace),
+  ]
 );

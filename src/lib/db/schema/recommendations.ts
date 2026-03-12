@@ -3,115 +3,105 @@ import {
   pgTable,
   uuid,
   text,
-  varchar,
   timestamp,
   integer,
-  doublePrecision,
+  real,
   jsonb,
-  boolean,
-  pgEnum,
+  index,
 } from "drizzle-orm/pg-core";
 import { users } from "./users";
 import { states, species, huntUnits } from "./hunting";
 
-// Enums
-export const playbookStatusEnum = pgEnum("playbook_status", [
-  "draft",
-  "active",
-  "archived",
-]);
+// ========================
+// PLAYBOOKS (living strategy documents)
+// ========================
 
-export const confidenceLevelEnum = pgEnum("confidence_level", [
-  "low",
-  "medium",
-  "high",
-  "very_high",
-]);
+export const playbooks = pgTable(
+  "playbooks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    version: integer("version").notNull().default(1),
+    status: text("status").notNull().default("active"), // 'active' | 'archived'
+    goalsSummary: jsonb("goals_summary").notNull().default({}),
+    strategyData: jsonb("strategy_data").notNull().default({}),
+    generatedAt: timestamp("generated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("playbooks_user_id_idx").on(table.userId),
+    index("playbooks_status_idx").on(table.status),
+    index("playbooks_user_status_idx").on(table.userId, table.status),
+  ]
+);
 
-export const recommendationStatusEnum = pgEnum("recommendation_status", [
-  "pending",
-  "accepted",
-  "dismissed",
-  "completed",
-]);
+// ========================
+// RECOMMENDATIONS (individual hunt recommendations within a playbook)
+// ========================
 
-// Playbooks — multi-year hunting strategies
-export const playbooks = pgTable("playbooks", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  title: varchar("title", { length: 255 }).notNull(),
-  description: text("description"),
-  status: playbookStatusEnum("status").default("draft").notNull(),
-  startYear: integer("start_year").notNull(),
-  endYear: integer("end_year").notNull(),
-  strategy: jsonb("strategy").$type<{
-    years: Array<{
-      year: number;
-      applications: Array<{
-        stateCode: string;
-        species: string;
-        unit: string;
-        weaponType: string;
-        priority: number;
-        rationale: string;
-      }>;
-    }>;
-  }>(),
-  aiGeneratedAt: timestamp("ai_generated_at", { withTimezone: true }),
-  aiModelUsed: varchar("ai_model_used", { length: 100 }),
-  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-});
+export const recommendations = pgTable(
+  "recommendations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    playbookId: uuid("playbook_id")
+      .notNull()
+      .references(() => playbooks.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    stateId: uuid("state_id")
+      .notNull()
+      .references(() => states.id),
+    speciesId: uuid("species_id")
+      .notNull()
+      .references(() => species.id),
+    huntUnitId: uuid("hunt_unit_id").references(() => huntUnits.id, {
+      onDelete: "set null",
+    }),
+    recType: text("rec_type").notNull(), // 'apply_now' | 'build_points' | 'otc_opportunity' | 'watch'
+    orientation: text("orientation"), // 'trophy' | 'opportunity' | 'balanced'
+    rank: integer("rank"),
+    score: real("score"), // composite score
+    confidence: real("confidence"), // 0-1 confidence level
+    rationale: text("rationale"), // AI-generated explanation
+    costEstimate: jsonb("cost_estimate").notNull().default({}), // { tag, license, travel, total }
+    timeline: text("timeline"), // 'this_year' | '1-3_years' | '3-5_years' | '5+_years'
+    drawOddsCtx: jsonb("draw_odds_ctx").notNull().default({}), // current odds context
+    forecastCtx: jsonb("forecast_ctx").notNull().default({}), // forward-looking forecast data
+    factors: jsonb("factors").notNull().default({}), // scoring breakdown by factor
+    status: text("status").notNull().default("active"), // 'active' | 'saved' | 'dismissed' | 'applied'
+    userFeedback: text("user_feedback"), // 'like' | 'dislike' | 'save'
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("recommendations_playbook_id_idx").on(table.playbookId),
+    index("recommendations_user_id_idx").on(table.userId),
+    index("recommendations_state_species_idx").on(
+      table.stateId,
+      table.speciesId
+    ),
+    index("recommendations_status_idx").on(table.status),
+    index("recommendations_rec_type_idx").on(table.recType),
+    index("recommendations_user_status_idx").on(table.userId, table.status),
+    index("recommendations_rank_idx").on(table.rank),
+  ]
+);
 
-// Recommendations — individual hunt recommendations
-export const recommendations = pgTable("recommendations", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  playbookId: uuid("playbook_id").references(() => playbooks.id, {
-    onDelete: "set null",
-  }),
-  stateId: uuid("state_id")
-    .notNull()
-    .references(() => states.id, { onDelete: "cascade" }),
-  speciesId: uuid("species_id")
-    .notNull()
-    .references(() => species.id, { onDelete: "cascade" }),
-  huntUnitId: uuid("hunt_unit_id").references(() => huntUnits.id, {
-    onDelete: "set null",
-  }),
-  year: integer("year").notNull(),
-  weaponType: varchar("weapon_type", { length: 50 }),
-  choiceNumber: integer("choice_number").default(1),
-  status: recommendationStatusEnum("status").default("pending").notNull(),
-  confidence: confidenceLevelEnum("confidence").default("medium").notNull(),
-  estimatedDrawOdds: doublePrecision("estimated_draw_odds"),
-  rationale: text("rationale"),
-  aiAnalysis: jsonb("ai_analysis").$type<{
-    pros: string[];
-    cons: string[];
-    alternativeUnits: string[];
-    pointProjection: string;
-  }>(),
-  isPriority: boolean("is_priority").default(false),
-  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-});
+// ========================
+// RELATIONS
+// ========================
 
-// Relations
 export const playbooksRelations = relations(playbooks, ({ one, many }) => ({
   user: one(users, {
     fields: [playbooks.userId],
@@ -123,13 +113,13 @@ export const playbooksRelations = relations(playbooks, ({ one, many }) => ({
 export const recommendationsRelations = relations(
   recommendations,
   ({ one }) => ({
-    user: one(users, {
-      fields: [recommendations.userId],
-      references: [users.id],
-    }),
     playbook: one(playbooks, {
       fields: [recommendations.playbookId],
       references: [playbooks.id],
+    }),
+    user: one(users, {
+      fields: [recommendations.userId],
+      references: [users.id],
     }),
     state: one(states, {
       fields: [recommendations.stateId],
