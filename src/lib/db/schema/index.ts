@@ -82,6 +82,14 @@ export {
   stateRegulationsRelations,
 } from "./regulations";
 
+// Outfitters domain
+export {
+  outfitters,
+  outfitterReviews,
+  outfittersRelations,
+  outfitterReviewsRelations,
+} from "./outfitters";
+
 // Groups domain
 export {
   huntGroups,

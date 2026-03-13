@@ -18,6 +18,7 @@ import {
   Target,
   Dice5,
   Users,
+  MapPin,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -30,6 +31,7 @@ const mainNavItems = [
   { href: "/simulation", label: "Simulate", icon: Dice5 },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/groups", label: "Groups", icon: Users },
+  { href: "/outfitters", label: "Outfitters", icon: MapPin },
   { href: "/chat", label: "Chat", icon: MessageCircle },
 ];
 

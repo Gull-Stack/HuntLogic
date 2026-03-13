@@ -11,6 +11,7 @@ import * as config from "./schema/config";
 import * as regulations from "./schema/regulations";
 import * as authSchema from "./schema/auth";
 import * as groups from "./schema/groups";
+import * as outfitterSchema from "./schema/outfitters";
 
 const connectionString = process.env.DATABASE_URL!;
 
@@ -33,6 +34,7 @@ export const db = drizzle(queryClient, {
     ...regulations,
     ...authSchema,
     ...groups,
+    ...outfitterSchema,
   },
 });
 
