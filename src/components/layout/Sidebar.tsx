@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Target,
   Dice5,
+  Users,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -28,6 +29,7 @@ const mainNavItems = [
   { href: "/forecasts", label: "Forecasts", icon: BarChart3 },
   { href: "/simulation", label: "Simulate", icon: Dice5 },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
+  { href: "/groups", label: "Groups", icon: Users },
   { href: "/chat", label: "Chat", icon: MessageCircle },
 ];
 

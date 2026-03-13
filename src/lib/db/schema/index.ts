@@ -82,6 +82,16 @@ export {
   stateRegulationsRelations,
 } from "./regulations";
 
+// Groups domain
+export {
+  huntGroups,
+  huntGroupMembers,
+  huntGroupPlans,
+  huntGroupsRelations,
+  huntGroupMembersRelations,
+  huntGroupPlansRelations,
+} from "./groups";
+
 // Auth domain
 export {
   authAccounts,

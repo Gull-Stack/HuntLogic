@@ -33,6 +33,7 @@ const routeTitles: Record<string, string> = {
   "/settings": "Settings",
   "/profile/harvest": "Harvest Log",
   "/simulation": "Simulator",
+  "/groups": "Hunt Groups",
 };
 
 export function TopBar({ onMenuClick }: TopBarProps) {
