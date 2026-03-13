@@ -100,6 +100,12 @@ export {
   huntGroupPlansRelations,
 } from "./groups";
 
+// Credentials domain
+export {
+  stateCredentials,
+  stateCredentialsRelations,
+} from "./credentials";
+
 // Auth domain
 export {
   authAccounts,

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Bell, Globe, User, Shield, Download, Check } from "lucide-react";
+import { Bell, Globe, User, Shield, Download, Check, Link2, ChevronRight } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
+import Link from "next/link";
 
 interface NotifPrefs {
   emailEnabled: boolean;
@@ -169,6 +170,17 @@ export default function SettingsPage() {
           <ToggleRow label="Strategy Updates" description="When your recommendations change" checked={notifPrefs.strategyUpdates} onChange={(v) => updateNotif("strategyUpdates", v)} />
           <ToggleRow label="Point Creep Alerts" description="When point requirements shift significantly" checked={notifPrefs.pointCreepAlerts} onChange={(v) => updateNotif("pointCreepAlerts", v)} />
         </div>
+      </SettingsCard>
+
+      {/* State Accounts */}
+      <SettingsCard icon={Link2} title="State Accounts">
+        <Link
+          href="/settings/accounts"
+          className="flex min-h-[44px] items-center justify-between rounded-[10px] border border-brand-sage/20 px-4 py-3 text-sm text-brand-bark transition-colors hover:bg-brand-sage/5 dark:text-brand-cream dark:border-brand-sage/30 dark:hover:bg-brand-sage/10"
+        >
+          <span>Manage State Accounts</span>
+          <ChevronRight className="h-4 w-4 text-brand-sage" />
+        </Link>
       </SettingsCard>
 
       {/* Data & Privacy */}
