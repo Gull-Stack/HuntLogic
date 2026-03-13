@@ -6,6 +6,7 @@
 // =============================================================================
 
 import { sendMessage, ADVANCED_MODEL } from "@/lib/ai/client";
+import { assembleContext } from "@/lib/ai/rag";
 import type { HunterProfile } from "@/services/profile/types";
 import type { ScoredHunt, StrategyPlan } from "./types";
 
@@ -129,6 +130,7 @@ Rules:
 - Keep it to 2-4 sentences, conversational and direct
 - Sound like a trusted advisor, not a data dump
 - Never fabricate data — use the numbers provided
+- If state agency data is provided, reference specific details (deadlines, regulation changes, draw statistics) to make your explanation more authoritative
 - If confidence is low, be transparent about uncertainty`;
 
 /**
@@ -144,6 +146,18 @@ export async function generateExplanation(
   );
 
   try {
+    // Retrieve relevant state/species documents for grounded explanations
+    let ragContext = "";
+    try {
+      const ragQuery = `${hunt.stateCode} ${hunt.speciesName} draw odds regulations ${hunt.unitCode ?? ""}`.trim();
+      ragContext = await assembleContext(ragQuery, 3, {
+        stateId: hunt.stateId ?? undefined,
+        speciesId: hunt.speciesId ?? undefined,
+      });
+    } catch (ragErr) {
+      console.warn(`${LOG_PREFIX} RAG context unavailable: ${ragErr instanceof Error ? ragErr.message : String(ragErr)}`);
+    }
+
     const prompt = `Given this hunter's profile and the following scored hunt recommendation, write a personalized explanation of why this hunt is recommended.
 
 HUNTER PROFILE:
@@ -157,8 +171,8 @@ STRATEGY CONTEXT:
 - Mid-term hunts in plan: ${strategy.midTerm.length}
 - Long-term hunts in plan: ${strategy.longTerm.length}
 - Warnings: ${strategy.warnings.length > 0 ? strategy.warnings.join("; ") : "none"}
-
-Write a conversational, 2-4 sentence explanation of why this hunt fits this hunter's goals. Reference specific data points and the hunter's stated preferences. Be honest about confidence level.`;
+${ragContext ? `\nRELEVANT STATE AGENCY DATA:\n${ragContext}` : ""}
+Write a conversational, 2-4 sentence explanation of why this hunt fits this hunter's goals. Reference specific data points and the hunter's stated preferences. If the state agency data above contains relevant details (deadlines, regulation changes, draw statistics), incorporate them naturally. Be honest about confidence level.`;
 
     const response = await sendMessage({
       messages: [{ role: "user", content: prompt }],
@@ -214,6 +228,19 @@ export async function generatePlaybookSummary(
       )
       .join("\n  ");
 
+    // Gather RAG context from all states in the strategy
+    let ragContext = "";
+    try {
+      const stateNames = new Set<string>();
+      for (const r of [...strategy.nearTerm, ...strategy.midTerm, ...strategy.longTerm]) {
+        stateNames.add(r.hunt.stateName);
+      }
+      const ragQuery = `hunting regulations draw odds seasons ${[...stateNames].join(" ")}`;
+      ragContext = await assembleContext(ragQuery, 5);
+    } catch (ragErr) {
+      console.warn(`${LOG_PREFIX} RAG context unavailable for summary: ${ragErr instanceof Error ? ragErr.message : String(ragErr)}`);
+    }
+
     const prompt = `Write an executive summary (2-3 paragraphs) for this hunter's personalized hunting playbook.
 
 HUNTER PROFILE:
@@ -235,12 +262,13 @@ Point Strategy:
 Budget: $${strategy.budgetAllocation.totalBudget.toLocaleString()}
 Total Estimated Cost: $${strategy.totalEstimatedCost.toLocaleString()}
 Warnings: ${strategy.warnings.length > 0 ? strategy.warnings.join("; ") : "None"}
-
+${ragContext ? `\nSTATE AGENCY REFERENCE DATA:\n${ragContext}` : ""}
 Write a warm, confident executive summary that:
 1. Summarizes the hunter's goals and what this playbook does for them
 2. Highlights the top 2-3 most exciting opportunities
 3. Notes any key strategic decisions (point building, state focus, etc.)
 4. Mentions budget fit and timeline
+5. If the reference data above contains relevant deadlines or regulation details, weave them in naturally
 Be conversational and encouraging, like a trusted advisor.`;
 
     const response = await sendMessage({
@@ -271,6 +299,16 @@ export async function generateStrategyRationale(
   console.log(`${LOG_PREFIX} generateStrategyRationale`);
 
   try {
+    // RAG context for state-level regulation intelligence
+    let ragContext = "";
+    try {
+      const states = strategy.pointStrategy.map((p) => p.stateCode).join(" ");
+      const ragQuery = `hunting application strategy point system draw odds ${states}`.trim();
+      ragContext = await assembleContext(ragQuery, 3);
+    } catch (ragErr) {
+      console.warn(`${LOG_PREFIX} RAG context unavailable for rationale: ${ragErr instanceof Error ? ragErr.message : String(ragErr)}`);
+    }
+
     const prompt = `Explain the strategic thinking behind this hunting plan in 2-3 sentences. Focus on:
 - Why these states/species were chosen
 - The balance between short-term and long-term
@@ -285,7 +323,8 @@ Mid-term: ${strategy.midTerm.length} hunts
 Long-term: ${strategy.longTerm.length} hunts
 Point states: ${strategy.pointStrategy.map((p) => `${p.stateCode} ${p.speciesName}`).join(", ") || "none"}
 Budget: $${strategy.budgetAllocation.totalBudget.toLocaleString()}
-Warnings: ${strategy.warnings.join("; ") || "none"}`;
+Warnings: ${strategy.warnings.join("; ") || "none"}
+${ragContext ? `\nSTATE AGENCY CONTEXT:\n${ragContext}` : ""}`;
 
     const response = await sendMessage({
       messages: [{ role: "user", content: prompt }],
