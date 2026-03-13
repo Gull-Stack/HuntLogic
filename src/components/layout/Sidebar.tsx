@@ -22,6 +22,7 @@ import {
   ClipboardList,
 } from "lucide-react";
 import { useState } from "react";
+import { useTenant } from "@/components/providers/TenantProvider";
 
 const mainNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
@@ -46,6 +47,7 @@ const bottomNavItems = [
 export function Sidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const { tenantConfig } = useTenant();
 
   return (
     <aside
@@ -59,7 +61,7 @@ export function Sidebar() {
         {!collapsed && (
           <div>
             <h2 className="text-lg font-bold text-brand-forest dark:text-brand-cream">
-              HuntLogic
+              {tenantConfig.brandName}
             </h2>
             <p className="text-[10px] font-medium tracking-wider uppercase text-brand-sage">
               Concierge
