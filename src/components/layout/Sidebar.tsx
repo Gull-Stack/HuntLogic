@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Target,
+  Dice5,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -25,6 +26,7 @@ const mainNavItems = [
   { href: "/recommendations", label: "Recommendations", icon: Star },
   { href: "/explore", label: "Explore", icon: Compass },
   { href: "/forecasts", label: "Forecasts", icon: BarChart3 },
+  { href: "/simulation", label: "Simulate", icon: Dice5 },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/chat", label: "Chat", icon: MessageCircle },
 ];
