@@ -43,6 +43,10 @@ declare module "next-auth" {
 export const authConfig: NextAuthConfig = {
   adapter: HuntLogicDrizzleAdapter(),
 
+  // Trust the host header — required for Vercel deployments where the
+  // canonical URL may differ from the request host (e.g. preview URLs)
+  trustHost: true,
+
   // ---------------------------------------------------------------------------
   // Providers
   // ---------------------------------------------------------------------------
