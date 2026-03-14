@@ -4,12 +4,13 @@
  * Gracefully falls back to existing forecast-engine when ML_SERVICE_URL is not set or service is unavailable.
  */
 
+import { config } from "@/lib/config";
+
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL;
 const TIMEOUT_MS = 10_000;
 
-// In-memory cache with 5-minute TTL
+// In-memory cache with configurable TTL (default 5 minutes)
 const cache = new Map<string, { data: unknown; expiry: number }>();
-const CACHE_TTL_MS = 5 * 60 * 1000;
 
 function getCached<T>(key: string): T | null {
   const entry = cache.get(key);
@@ -19,7 +20,7 @@ function getCached<T>(key: string): T | null {
 }
 
 function setCache(key: string, data: unknown): void {
-  cache.set(key, { data, expiry: Date.now() + CACHE_TTL_MS });
+  cache.set(key, { data, expiry: Date.now() + config.cache.configTtlMs });
 }
 
 async function mlFetch<T>(path: string, body: unknown): Promise<T | null> {

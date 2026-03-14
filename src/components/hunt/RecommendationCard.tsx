@@ -12,6 +12,7 @@ import {
   DollarSign,
   Clock,
   Sparkles,
+  Send,
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
@@ -23,6 +24,7 @@ interface RecommendationCardProps {
   recommendation: RecommendationOutput;
   onSave?: (id: string) => void;
   onDismiss?: (id: string) => void;
+  onApplyForMe?: (recommendation: RecommendationOutput) => void;
   className?: string;
 }
 
@@ -44,6 +46,7 @@ export function RecommendationCard({
   recommendation,
   onSave,
   onDismiss,
+  onApplyForMe,
   className,
 }: RecommendationCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -261,6 +264,17 @@ export function RecommendationCard({
               </h4>
               <CostBreakdown costs={costEstimate} />
             </div>
+
+            {/* Apply for Me CTA */}
+            {onApplyForMe && (
+              <button
+                onClick={() => onApplyForMe(recommendation)}
+                className="w-full rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 px-4 py-3 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg hover:brightness-110 active:scale-[0.98] flex items-center justify-center gap-2"
+              >
+                <Send className="h-4 w-4" />
+                Apply for Me
+              </button>
+            )}
 
             {/* Point strategy note */}
             {hunt.hasPoints && hunt.latestAvgPoints != null && (

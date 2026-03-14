@@ -8,6 +8,7 @@
 // =============================================================================
 
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 import {
   forecastPointCreep,
   forecastDrawOdds,
@@ -20,7 +21,8 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
 
-    const userId = request.headers.get("x-user-id");
+    const session = await auth();
+    const userId = session?.user?.id;
     if (!userId) {
       return NextResponse.json(
         { error: "Authentication required" },

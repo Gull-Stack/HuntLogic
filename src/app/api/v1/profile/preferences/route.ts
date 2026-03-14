@@ -3,6 +3,7 @@
 // =============================================================================
 
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 import {
   getPreferences,
   setPreferences,
@@ -11,23 +12,14 @@ import {
 } from "@/services/profile";
 import type { PreferenceInput, PreferenceCategory } from "@/services/profile";
 
-/**
- * Placeholder auth.
- */
-function getUserIdFromRequest(request: NextRequest): string | null {
-  const userIdHeader = request.headers.get("x-user-id");
-  if (userIdHeader) return userIdHeader;
-  const url = new URL(request.url);
-  return url.searchParams.get("userId");
-}
-
 // =============================================================================
 // GET /api/v1/profile/preferences — List all preferences
 // =============================================================================
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = getUserIdFromRequest(request);
+    const session = await auth();
+    const userId = session?.user?.id;
     if (!userId) {
       return NextResponse.json(
         { error: "Unauthorized", message: "User ID is required" },
@@ -69,7 +61,8 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const userId = getUserIdFromRequest(request);
+    const session = await auth();
+    const userId = session?.user?.id;
     if (!userId) {
       return NextResponse.json(
         { error: "Unauthorized", message: "User ID is required" },

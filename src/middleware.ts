@@ -14,15 +14,18 @@ const PUBLIC_ROUTES = new Set([
   "/pricing",
   "/features",
   "/about",
+  "/ops/login",
 ]);
 
 // Path prefixes that are always public
 const PUBLIC_PREFIXES = [
   "/api/auth",
   "/api/health",
+  "/api/webhooks",
   "/api/v1/deadlines",
   "/api/v1/regulations",
   "/api/v1/ingestion/trigger",
+  "/api/v1/ops/auth",
   "/_next",
   "/favicon",
 ];
@@ -34,6 +37,34 @@ export default auth((req) => {
   // 1. Always allow public prefixes
   // -------------------------------------------------------------------------
   if (PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
+    return NextResponse.next();
+  }
+
+  // -------------------------------------------------------------------------
+  // 1b. Ops API routes (non-auth) — require ops_session cookie
+  // -------------------------------------------------------------------------
+  if (
+    pathname.startsWith("/api/v1/ops") &&
+    !pathname.startsWith("/api/v1/ops/auth")
+  ) {
+    const opsToken = req.cookies.get("ops_session")?.value;
+    if (!opsToken) {
+      return NextResponse.json(
+        { error: "Ops authentication required" },
+        { status: 401 }
+      );
+    }
+    return NextResponse.next();
+  }
+
+  // -------------------------------------------------------------------------
+  // 1c. Ops pages (non-login) — require ops_session cookie
+  // -------------------------------------------------------------------------
+  if (pathname.startsWith("/ops") && pathname !== "/ops/login") {
+    const opsToken = req.cookies.get("ops_session")?.value;
+    if (!opsToken) {
+      return NextResponse.redirect(new URL("/ops/login", req.url));
+    }
     return NextResponse.next();
   }
 
@@ -111,6 +142,6 @@ export const config = {
      * - _next/image (image optimization)
      * - favicon.ico, robots.txt, manifest.json, icons
      */
-    "/((?!_next/static|_next/image|favicon.ico|robots.txt|manifest.json|apple-touch-icon.png|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|robots.txt|manifest.json|sw\\.js|apple-touch-icon.png|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

@@ -20,7 +20,7 @@ interface TenantConfig {
 
 const DEFAULT_CONFIG: TenantConfig = {
   id: "huntlogic",
-  brandName: "HuntLogic",
+  brandName: process.env.NEXT_PUBLIC_BRAND_NAME || "HuntLogic",
   logoUrl: "/logo.svg",
   primaryColor: "#1A3C2A",
   ctaGradient: "linear-gradient(135deg, #C4651A, #D4A03C)",

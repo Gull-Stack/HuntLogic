@@ -5,9 +5,10 @@
  * with fallback to hardcoded defaults.
  */
 
-// TODO: Import from db when ready
-// import { db } from "@/lib/db";
-// import { aiPrompts } from "@/lib/db/schema/config";
+import { db } from "@/lib/db";
+import { aiPrompts } from "@/lib/db/schema/config";
+import { eq, and, desc } from "drizzle-orm";
+import { config } from "@/lib/config";
 
 export interface PromptTemplate {
   slug: string;
@@ -43,7 +44,7 @@ How you help:
 - Recommend checking official state agency websites for the most current regulations
 - Consider the hunter's full picture: budget, time, experience, physical fitness, travel distance`,
     userPromptTemplate: "{{context}}\n\nUser question: {{query}}",
-    model: "claude-sonnet-4-6",
+    model: config.ai.model,
     maxTokens: 4096,
     temperature: 0.7,
   },
@@ -67,19 +68,76 @@ How you help:
   },
 };
 
+// In-memory prompt cache with configurable TTL (default 5 minutes)
+const promptCache = new Map<string, { prompt: PromptTemplate; expiresAt: number }>();
+
 /**
  * Load a prompt template by slug.
- * Tries the database first, falls back to defaults.
+ * Tries the in-memory cache, then the database, then falls back to defaults.
  */
 export async function loadPrompt(slug: string): Promise<PromptTemplate | null> {
-  // TODO: Query database for prompt
-  // const dbPrompt = await db.query.aiPrompts.findFirst({
-  //   where: and(eq(aiPrompts.slug, slug), eq(aiPrompts.isActive, true)),
-  //   orderBy: desc(aiPrompts.createdAt),
-  // });
+  // 1. Check cache
+  const cached = promptCache.get(slug);
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.prompt;
+  }
 
-  // Fall back to default
-  return DEFAULT_PROMPTS[slug] || null;
+  // 2. Query database
+  try {
+    const dbPrompt = await db.query.aiPrompts.findFirst({
+      where: and(eq(aiPrompts.slug, slug), eq(aiPrompts.active, true)),
+      orderBy: desc(aiPrompts.version),
+    });
+
+    if (dbPrompt) {
+      // The DB stores the system prompt in `template`.
+      // For the user prompt template, check `variables` metadata for a
+      // custom user_prompt_template, then fall back to the hardcoded
+      // default's userPromptTemplate, then a generic pattern.
+      const vars = dbPrompt.variables as Record<string, unknown> | unknown[];
+      const customUserTemplate =
+        !Array.isArray(vars) && typeof vars === "object"
+          ? (vars.user_prompt_template as string | undefined)
+          : undefined;
+
+      const defaultForSlug = DEFAULT_PROMPTS[dbPrompt.slug];
+
+      const prompt: PromptTemplate = {
+        slug: dbPrompt.slug,
+        systemPrompt: dbPrompt.template,
+        userPromptTemplate:
+          customUserTemplate ??
+          defaultForSlug?.userPromptTemplate ??
+          "{{context}}\n\nUser question: {{query}}",
+        model: dbPrompt.model,
+        maxTokens: dbPrompt.maxTokens,
+        temperature: dbPrompt.temperature,
+      };
+      promptCache.set(slug, { prompt, expiresAt: Date.now() + config.cache.promptTtlMs });
+      return prompt;
+    }
+  } catch (error) {
+    console.error(`[prompts] Failed to load prompt "${slug}" from DB:`, error);
+  }
+
+  // 3. Fall back to hardcoded defaults
+  const fallback = DEFAULT_PROMPTS[slug] || null;
+  if (fallback) {
+    promptCache.set(slug, { prompt: fallback, expiresAt: Date.now() + config.cache.promptTtlMs });
+  }
+  return fallback;
+}
+
+/**
+ * Clear the prompt cache. Call when prompts are updated in the DB
+ * (e.g., from an admin API endpoint).
+ */
+export function clearPromptCache(slug?: string): void {
+  if (slug) {
+    promptCache.delete(slug);
+  } else {
+    promptCache.clear();
+  }
 }
 
 /**

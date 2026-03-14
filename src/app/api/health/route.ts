@@ -1,13 +1,22 @@
 import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { sql } from "drizzle-orm";
+import { config } from "@/lib/config";
+
+interface ServiceCheck {
+  status: "healthy" | "unhealthy" | "not_configured";
+  latencyMs?: number;
+  error?: string;
+}
 
 interface HealthStatus {
   status: "healthy" | "degraded" | "unhealthy";
   timestamp: string;
   version: string;
   checks: {
-    database: { status: string; latencyMs?: number; error?: string };
-    redis: { status: string; latencyMs?: number; error?: string };
-    meilisearch: { status: string; latencyMs?: number; error?: string };
+    database: ServiceCheck;
+    redis: ServiceCheck;
+    meilisearch: ServiceCheck;
   };
 }
 
@@ -17,17 +26,16 @@ export async function GET() {
     timestamp: new Date().toISOString(),
     version: process.env.npm_package_version || "0.1.0",
     checks: {
-      database: { status: "unchecked" },
-      redis: { status: "unchecked" },
-      meilisearch: { status: "unchecked" },
+      database: { status: "unhealthy" },
+      redis: { status: "unhealthy" },
+      meilisearch: { status: "not_configured" },
     },
   };
 
   // Check PostgreSQL
   try {
     const dbStart = Date.now();
-    // TODO: Import db client and run SELECT 1
-    // const result = await db.execute(sql`SELECT 1`);
+    await db.execute(sql`SELECT 1`);
     health.checks.database = {
       status: "healthy",
       latencyMs: Date.now() - dbStart,
@@ -37,48 +45,72 @@ export async function GET() {
       status: "unhealthy",
       error: error instanceof Error ? error.message : "Unknown error",
     };
-    health.status = "degraded";
   }
 
   // Check Redis
   try {
-    const redisStart = Date.now();
-    // TODO: Import redis client and run PING
-    // const pong = await redis.ping();
-    health.checks.redis = {
-      status: "healthy",
-      latencyMs: Date.now() - redisStart,
-    };
+    const redisUrl = config.redis.url;
+    if (!redisUrl) {
+      health.checks.redis = { status: "not_configured" };
+    } else {
+      const redisStart = Date.now();
+      // Attempt a lightweight TCP connection check to Redis
+      const url = new URL(redisUrl);
+      const host = url.hostname || "localhost";
+      const port = parseInt(url.port || "6379", 10);
+
+      await new Promise<void>((resolve, reject) => {
+        const { createConnection } = require("net");
+        const socket = createConnection({ host, port, timeout: 2000 }, () => {
+          // Send PING command in Redis protocol
+          socket.write("*1\r\n$4\r\nPING\r\n");
+        });
+        socket.on("data", (data: Buffer) => {
+          const response = data.toString();
+          socket.destroy();
+          if (response.includes("PONG")) {
+            resolve();
+          } else {
+            reject(new Error(`Unexpected Redis response: ${response}`));
+          }
+        });
+        socket.on("timeout", () => {
+          socket.destroy();
+          reject(new Error("Redis connection timed out"));
+        });
+        socket.on("error", (err: Error) => {
+          socket.destroy();
+          reject(err);
+        });
+      });
+
+      health.checks.redis = {
+        status: "healthy",
+        latencyMs: Date.now() - redisStart,
+      };
+    }
   } catch (error) {
     health.checks.redis = {
       status: "unhealthy",
       error: error instanceof Error ? error.message : "Unknown error",
     };
-    health.status = "degraded";
   }
 
-  // Check Meilisearch
-  try {
-    const meiliStart = Date.now();
-    // TODO: Import meilisearch client and check health
-    // const meiliHealth = await meili.health();
-    health.checks.meilisearch = {
-      status: "healthy",
-      latencyMs: Date.now() - meiliStart,
-    };
-  } catch (error) {
-    health.checks.meilisearch = {
-      status: "unhealthy",
-      error: error instanceof Error ? error.message : "Unknown error",
-    };
-    health.status = "degraded";
-  }
+  // Meilisearch — not configured, skip
+  health.checks.meilisearch = { status: "not_configured" };
 
-  const allUnhealthy = Object.values(health.checks).every(
-    (c) => c.status === "unhealthy"
-  );
-  if (allUnhealthy) {
+  // Determine overall status
+  const checkStatuses = Object.values(health.checks);
+  const realChecks = checkStatuses.filter((c) => c.status !== "not_configured");
+  const allHealthy = realChecks.every((c) => c.status === "healthy");
+  const allUnhealthy = realChecks.every((c) => c.status === "unhealthy");
+
+  if (allUnhealthy && realChecks.length > 0) {
     health.status = "unhealthy";
+  } else if (!allHealthy) {
+    health.status = "degraded";
+  } else {
+    health.status = "healthy";
   }
 
   const statusCode = health.status === "unhealthy" ? 503 : 200;

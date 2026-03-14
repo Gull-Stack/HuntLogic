@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { runSimulation } from "@/services/simulation";
 import { compareScenarios } from "@/services/simulation/scenarios";
+import { config } from "@/lib/config";
 
 // Simple in-memory rate limiter
 const rateLimiter = new Map<string, number[]>();
-const MAX_REQUESTS = 5;
+const MAX_REQUESTS = config.rateLimit.simulationMaxPerMin;
 const WINDOW_MS = 60_000;
 
 export async function POST(request: Request) {

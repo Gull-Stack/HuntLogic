@@ -1,3 +1,5 @@
+import { fetchWithCache } from "./cache";
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
@@ -54,6 +56,34 @@ class ApiClient {
 
   async get<T>(path: string): Promise<ApiResponse<T>> {
     return this.request<T>("GET", path);
+  }
+
+  /**
+   * GET with stale-while-revalidate caching.
+   * Returns cached data immediately if fresh, revalidates in background if stale.
+   */
+  async getCached<T>(
+    path: string,
+    options?: { staleMs?: number; maxAgeMs?: number }
+  ): Promise<ApiResponse<T>> {
+    try {
+      const data = await fetchWithCache<T>(`${this.baseUrl}${path}`, {
+        headers: this.defaultHeaders,
+        staleMs: options?.staleMs,
+        maxAgeMs: options?.maxAgeMs,
+      });
+      return {
+        data,
+        error: null,
+        status: 200,
+      };
+    } catch (error) {
+      return {
+        data: null as T,
+        error: error instanceof Error ? error.message : "Network error",
+        status: 0,
+      };
+    }
   }
 
   async post<T>(path: string, body?: unknown): Promise<ApiResponse<T>> {

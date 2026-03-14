@@ -3,28 +3,12 @@
 // =============================================================================
 
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 import {
   getProfile,
   updateProfile,
   inferPreferences,
 } from "@/services/profile";
-
-/**
- * Placeholder auth — returns a user ID from the request.
- * Will be replaced with real Auth.js session lookup later.
- */
-function getUserIdFromRequest(request: NextRequest): string | null {
-  // Check header first (API key / JWT placeholder)
-  const userIdHeader = request.headers.get("x-user-id");
-  if (userIdHeader) return userIdHeader;
-
-  // Check query param (for development convenience)
-  const url = new URL(request.url);
-  const userIdParam = url.searchParams.get("userId");
-  if (userIdParam) return userIdParam;
-
-  return null;
-}
 
 // =============================================================================
 // GET /api/v1/profile — Complete hunter profile
@@ -32,7 +16,8 @@ function getUserIdFromRequest(request: NextRequest): string | null {
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = getUserIdFromRequest(request);
+    const session = await auth();
+    const userId = session?.user?.id;
     if (!userId) {
       return NextResponse.json(
         { error: "Unauthorized", message: "User ID is required" },
@@ -70,7 +55,8 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const userId = getUserIdFromRequest(request);
+    const session = await auth();
+    const userId = session?.user?.id;
     if (!userId) {
       return NextResponse.json(
         { error: "Unauthorized", message: "User ID is required" },

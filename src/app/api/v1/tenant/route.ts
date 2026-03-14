@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { detectTenant, getTenantConfig } from "@/lib/tenant";
+import { config as appConfig } from "@/lib/config";
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,11 +15,11 @@ export async function GET(request: NextRequest) {
       {
         config: {
           id: "huntlogic",
-          brandName: "HuntLogic",
+          brandName: appConfig.app.brandName,
           logoUrl: "/logo.svg",
           primaryColor: "#1A3C2A",
           ctaGradient: "linear-gradient(135deg, #C4651A, #D4A03C)",
-          supportEmail: "support@huntlogic.com",
+          supportEmail: appConfig.app.supportEmail,
           featuresEnabled: ["all"],
         },
       },

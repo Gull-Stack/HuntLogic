@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import { AuthProvider } from "@/components/providers/AuthProvider";
+import { config } from "@/lib/config";
 import "./globals.css";
 
 const inter = Inter({
@@ -10,8 +12,8 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "HuntLogic Concierge",
-    template: "%s | HuntLogic",
+    default: config.app.name,
+    template: `%s | ${config.app.brandName}`,
   },
   description:
     "Your AI-powered hunting intelligence platform. Get personalized recommendations, draw odds analysis, season forecasts, and strategic playbooks for western big game hunting.",
@@ -27,22 +29,20 @@ export const metadata: Metadata = {
     "preference points",
     "hunting concierge",
   ],
-  authors: [{ name: "HuntLogic" }],
-  creator: "HuntLogic",
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
-  ),
+  authors: [{ name: config.app.brandName }],
+  creator: config.app.brandName,
+  metadataBase: new URL(config.app.url),
   openGraph: {
     type: "website",
     locale: "en_US",
-    siteName: "HuntLogic Concierge",
-    title: "HuntLogic Concierge — AI-Powered Hunting Intelligence",
+    siteName: config.app.name,
+    title: `${config.app.name} — AI-Powered Hunting Intelligence`,
     description:
       "Personalized hunt planning, draw odds analysis, and strategic recommendations powered by AI. Never miss a hunt again.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "HuntLogic Concierge",
+    title: config.app.name,
     description:
       "AI-powered hunting intelligence for western big game hunters.",
   },
@@ -54,7 +54,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "HuntLogic",
+    title: config.app.brandName,
   },
   formatDetection: {
     telephone: false,
@@ -89,7 +89,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       </head>
       <body className="min-h-screen bg-brand-cream font-sans text-brand-bark antialiased dark:bg-brand-forest dark:text-brand-cream">
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

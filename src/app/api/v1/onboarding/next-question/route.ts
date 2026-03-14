@@ -2,26 +2,18 @@
 // Next Question API — GET (returns next adaptive question or null if ready)
 // =============================================================================
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 import { getNextQuestion } from "@/services/onboarding";
-
-/**
- * Placeholder auth.
- */
-function getUserIdFromRequest(request: NextRequest): string | null {
-  const userIdHeader = request.headers.get("x-user-id");
-  if (userIdHeader) return userIdHeader;
-  const url = new URL(request.url);
-  return url.searchParams.get("userId");
-}
 
 // =============================================================================
 // GET /api/v1/onboarding/next-question — Next adaptive question
 // =============================================================================
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const userId = getUserIdFromRequest(request);
+    const session = await auth();
+    const userId = session?.user?.id;
     if (!userId) {
       return NextResponse.json(
         { error: "Unauthorized", message: "User ID is required" },

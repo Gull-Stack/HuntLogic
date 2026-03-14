@@ -15,6 +15,7 @@ import {
   Sparkles,
   BarChart3,
 } from "lucide-react";
+import { fetchWithCache } from "@/lib/api/cache";
 
 interface ForecastSelection {
   state: string;
@@ -67,26 +68,26 @@ export default function ForecastsPage() {
   const [isInitializing, setIsInitializing] = useState(true);
   const [forecast, setForecast] = useState<ForecastData | null>(null);
 
-  // Fetch available states and species on mount
+  // Fetch available states and species on mount (rarely changes — 120s stale)
   useEffect(() => {
     async function fetchOptions() {
       try {
-        const [statesRes, speciesRes] = await Promise.all([
-          fetch("/api/v1/regulations"),
-          fetch("/api/v1/species"),
+        const [statesData, speciesData] = await Promise.all([
+          fetchWithCache<{ states?: { code: string; name: string }[]; data?: { code: string; name: string }[] }>(
+            "/api/v1/regulations",
+            { staleMs: 120_000 }
+          ),
+          fetchWithCache<{ species?: { slug: string; name: string }[]; data?: { slug: string; name: string }[] }>(
+            "/api/v1/species",
+            { staleMs: 120_000 }
+          ),
         ]);
 
-        if (statesRes.ok) {
-          const statesData = await statesRes.json();
-          const statesList = statesData.states || statesData.data || [];
-          setAvailableStates(statesList.map((s: { code: string; name: string }) => ({ code: s.code, name: s.name })));
-        }
+        const statesList = statesData.states || statesData.data || [];
+        setAvailableStates(statesList.map((s) => ({ code: s.code, name: s.name })));
 
-        if (speciesRes.ok) {
-          const speciesData = await speciesRes.json();
-          const speciesList = speciesData.species || speciesData.data || [];
-          setAvailableSpecies(speciesList.map((s: { slug: string; name: string }) => ({ slug: s.slug, name: s.name })));
-        }
+        const speciesList = speciesData.species || speciesData.data || [];
+        setAvailableSpecies(speciesList.map((s) => ({ slug: s.slug, name: s.name })));
       } catch (err) {
         console.error("[forecasts] Failed to fetch dropdown options:", err);
       } finally {
@@ -106,38 +107,37 @@ export default function ForecastsPage() {
     async function fetchForecast() {
       setIsLoading(true);
       try {
-        const [pointCreepRes, roiRes] = await Promise.all([
-          fetch(`/api/v1/forecasts?type=point-creep&state=${selection.state}&species=${selection.species}`),
-          fetch(`/api/v1/forecasts?type=roi&state=${selection.state}&species=${selection.species}`),
+        const [pointCreepData, roiData] = await Promise.all([
+          fetchWithCache<{ forecast?: { pointCreep?: ForecastData["pointCreep"]; drawOdds?: ForecastData["drawOdds"]; trend?: string } }>(
+            `/api/v1/forecasts?type=point-creep&state=${selection.state}&species=${selection.species}`,
+            { staleMs: 60_000 }
+          ),
+          fetchWithCache<{ assessment?: ForecastData["roi"] }>(
+            `/api/v1/forecasts?type=roi&state=${selection.state}&species=${selection.species}`,
+            { staleMs: 60_000 }
+          ),
         ]);
 
-        if (pointCreepRes.ok && roiRes.ok) {
-          const pointCreepData = await pointCreepRes.json();
-          const roiData = await roiRes.json();
-
-          setForecast({
-            pointCreep: pointCreepData.forecast?.pointCreep ?? pointCreepData.forecast ?? {
-              historicalData: [],
-              projectedData: [],
-              userPoints: 0,
-              estimatedDrawYear: 0,
-            },
-            drawOdds: pointCreepData.forecast?.drawOdds ?? {
-              atCurrentPoints: 0,
-              trend: [],
-            },
-            roi: roiData.assessment ?? {
-              recommendation: "hold",
-              costPerOpportunity: 0,
-              projectedYears: 0,
-              totalInvestment: 0,
-              explanation: "",
-            },
-            trend: pointCreepData.forecast?.trend ?? "stable",
-          });
-        } else {
-          setForecast(null);
-        }
+        setForecast({
+          pointCreep: pointCreepData.forecast?.pointCreep ?? pointCreepData.forecast as unknown as ForecastData["pointCreep"] ?? {
+            historicalData: [],
+            projectedData: [],
+            userPoints: 0,
+            estimatedDrawYear: 0,
+          },
+          drawOdds: pointCreepData.forecast?.drawOdds ?? {
+            atCurrentPoints: 0,
+            trend: [],
+          },
+          roi: roiData.assessment ?? {
+            recommendation: "hold",
+            costPerOpportunity: 0,
+            projectedYears: 0,
+            totalInvestment: 0,
+            explanation: "",
+          },
+          trend: pointCreepData.forecast?.trend ?? "stable",
+        });
       } catch (err) {
         console.error("[forecasts] Failed to fetch forecast:", err);
         setForecast(null);

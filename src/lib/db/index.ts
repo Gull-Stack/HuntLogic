@@ -13,6 +13,7 @@ import * as authSchema from "./schema/auth";
 import * as groups from "./schema/groups";
 import * as outfitterSchema from "./schema/outfitters";
 import * as credentialSchema from "./schema/credentials";
+import * as conciergeSchema from "./schema/concierge";
 
 const connectionString = process.env.DATABASE_URL!;
 
@@ -37,6 +38,7 @@ export const db = drizzle(queryClient, {
     ...groups,
     ...outfitterSchema,
     ...credentialSchema,
+    ...conciergeSchema,
   },
 });
 

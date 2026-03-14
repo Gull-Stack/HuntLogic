@@ -19,6 +19,13 @@ export const config = {
   app: {
     url: optionalEnv("NEXT_PUBLIC_APP_URL", "http://localhost:3000"),
     name: optionalEnv("NEXT_PUBLIC_APP_NAME", "HuntLogic Concierge"),
+    brandName: optionalEnv("NEXT_PUBLIC_BRAND_NAME", "HuntLogic"),
+    aiAssistantName: optionalEnv("NEXT_PUBLIC_AI_ASSISTANT_NAME", "Teddy"),
+    supportEmail: optionalEnv("SUPPORT_EMAIL", "support@huntlogic.com"),
+    telegramBot: optionalEnv("TELEGRAM_BOT_HANDLE", "@TeddyLogicBot"),
+    brandColor: optionalEnv("BRAND_PRIMARY_COLOR", "#1A3C2A"),
+    brandAccent: optionalEnv("BRAND_ACCENT_COLOR", "#C4651A"),
+    brandAccentSecondary: optionalEnv("BRAND_ACCENT_SECONDARY", "#D4A03C"),
     env: optionalEnv("NODE_ENV", "development"),
     isDev: process.env.NODE_ENV === "development",
     isProd: process.env.NODE_ENV === "production",
@@ -53,6 +60,20 @@ export const config = {
       "ANTHROPIC_MODEL_ADVANCED",
       "claude-sonnet-4-20250514"
     ),
+    embeddingModel: optionalEnv("EMBEDDING_MODEL", "gemini-embedding-001"),
+  },
+
+  rateLimit: {
+    windowMs: Number(optionalEnv("RATE_LIMIT_WINDOW_MS", "60000")),
+    maxRequests: Number(optionalEnv("RATE_LIMIT_MAX_REQUESTS", "100")),
+    simulationMaxPerMin: Number(optionalEnv("RATE_LIMIT_SIMULATION", "5")),
+    credentialMaxPerHour: Number(optionalEnv("RATE_LIMIT_CREDENTIALS", "5")),
+  },
+
+  cache: {
+    promptTtlMs: Number(optionalEnv("CACHE_PROMPT_TTL_MS", "300000")),
+    configTtlMs: Number(optionalEnv("CACHE_CONFIG_TTL_MS", "300000")),
+    sessionMaxAge: Number(optionalEnv("SESSION_MAX_AGE", String(30 * 24 * 60 * 60))),
   },
 
   search: {
@@ -71,6 +92,13 @@ export const config = {
 
   forecasting: {
     apiUrl: optionalEnv("FORECASTING_API_URL", "http://localhost:8000"),
+  },
+
+  stripe: {
+    secretKey: () => requireEnv("STRIPE_SECRET_KEY"),
+    publishableKey: optionalEnv("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"),
+    webhookSecret: () => requireEnv("STRIPE_WEBHOOK_SECRET"),
+    currency: optionalEnv("STRIPE_CURRENCY", "usd"),
   },
 
   features: {

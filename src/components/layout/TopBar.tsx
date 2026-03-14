@@ -35,7 +35,7 @@ const routeTitles: Record<string, string> = {
   "/simulation": "Simulator",
   "/groups": "Hunt Groups",
   "/outfitters": "Outfitters",
-  "/applications": "Applications",
+  "/orders": "Orders",
 };
 
 export function TopBar({ onMenuClick }: TopBarProps) {

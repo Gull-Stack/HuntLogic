@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
+import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { playbooks } from "@/lib/db/schema";
 
@@ -21,9 +22,10 @@ const LOG_PREFIX = "[api:playbook]";
 // GET — Get active playbook
 // =============================================================================
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const userId = request.headers.get("x-user-id");
+    const session = await auth();
+    const userId = session?.user?.id;
     if (!userId) {
       return NextResponse.json(
         { error: "Authentication required" },
@@ -61,7 +63,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = request.headers.get("x-user-id");
+    const session = await auth();
+    const userId = session?.user?.id;
     if (!userId) {
       return NextResponse.json(
         { error: "Authentication required" },
@@ -128,7 +131,8 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const userId = request.headers.get("x-user-id");
+    const session = await auth();
+    const userId = session?.user?.id;
     if (!userId) {
       return NextResponse.json(
         { error: "Authentication required" },

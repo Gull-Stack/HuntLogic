@@ -14,6 +14,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema/users";
 import { HuntLogicDrizzleAdapter } from "./adapter";
+import { config } from "@/lib/config";
 
 // =============================================================================
 // Type augmentation for Auth.js
@@ -71,7 +72,7 @@ export const authConfig: NextAuthConfig = {
       ? [
           Resend({
             apiKey: process.env.RESEND_API_KEY,
-            from: process.env.EMAIL_FROM ?? "HuntLogic <noreply@huntlogic.com>",
+            from: config.auth.emailFrom,
           }),
         ]
       : []),
@@ -82,7 +83,7 @@ export const authConfig: NextAuthConfig = {
   // ---------------------------------------------------------------------------
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+    maxAge: config.cache.sessionMaxAge,
   },
 
   // ---------------------------------------------------------------------------
@@ -91,7 +92,7 @@ export const authConfig: NextAuthConfig = {
   pages: {
     signIn: "/login",
     newUser: "/onboarding",
-    error: "/login?error=true",
+    error: "/login",
   },
 
   // ---------------------------------------------------------------------------
@@ -135,8 +136,15 @@ export const authConfig: NextAuthConfig = {
      */
     async jwt({ token, user, trigger }) {
       const t = token as Record<string, unknown>;
-      // On initial sign-in or when token is refreshed
-      if (user?.email || trigger === "signIn" || trigger === "update") {
+      // Re-read from DB on sign-in, explicit update, or while onboarding is incomplete
+      // (once onboardingComplete=true, we stop re-checking on every request)
+      const needsRefresh =
+        user?.email ||
+        trigger === "signIn" ||
+        trigger === "update" ||
+        t.onboardingComplete === false;
+
+      if (needsRefresh) {
         const email = user?.email ?? (t.email as string | undefined);
         if (email) {
           const dbUser = await db.query.users.findFirst({
@@ -175,9 +183,30 @@ export const authConfig: NextAuthConfig = {
   events: {
     async createUser({ user }) {
       console.log(
-        `[auth] New user created: ${user.id} (${user.email}). Welcome notification triggered.`
+        `[auth] New user created: ${user.id} (${user.email}). Sending welcome notification.`
       );
-      // TODO: Trigger welcome notification / email
+
+      // Send welcome notification (in-app + email via notification service)
+      if (user.id) {
+        try {
+          const { createNotification } = await import(
+            "@/services/notifications/index"
+          );
+
+          await createNotification({
+            userId: user.id,
+            type: "welcome",
+            title: `Welcome to ${config.app.brandName}!`,
+            body: "Your AI-powered hunting concierge is ready. Complete your profile to get personalized draw recommendations, point tracking, and multi-year strategy playbooks tailored to your goals.",
+            actionUrl: "/onboarding",
+          });
+
+          console.log(`[auth] Welcome notification sent to user ${user.id}`);
+        } catch (err) {
+          // Non-blocking — don't fail signup if notification fails
+          console.warn("[auth] Failed to send welcome notification:", err);
+        }
+      }
     },
   },
 

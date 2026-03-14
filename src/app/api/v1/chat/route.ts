@@ -20,6 +20,7 @@ import {
   species,
   huntUnits,
 } from "@/lib/db/schema";
+import { config } from "@/lib/config";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -46,10 +47,11 @@ export async function POST(request: NextRequest) {
   // Load hunter profile context from DB
   const profileContext = await loadHunterProfileContext(session.user.id);
 
-  // Build context from history for Teddy
+  // Build context from history
+  const aiName = config.app.aiAssistantName;
   const contextLines = history
     .slice(-10)
-    .map((m) => `${m.role === "user" ? "Hunter" : "Teddy"}: ${m.content}`)
+    .map((m) => `${m.role === "user" ? "Hunter" : aiName}: ${m.content}`)
     .join("\n");
 
   // Assemble full message: profile context + conversation history + current message
@@ -81,7 +83,7 @@ export async function POST(request: NextRequest) {
     } catch (sdkErr) {
       console.error("[chat] All backends failed:", sdkErr);
       return NextResponse.json(
-        { error: "Teddy is currently unavailable. Try messaging him on Telegram: @TeddyLogicBot" },
+        { error: `${config.app.aiAssistantName} is currently unavailable. Try messaging him on Telegram: ${config.app.telegramBot}` },
         { status: 503 }
       );
     }
@@ -299,10 +301,10 @@ async function callAnthropicDirect(message: string): Promise<string> {
   const client = new Anthropic({ apiKey });
 
   const response = await client.messages.create({
-    model: "claude-sonnet-4-6",
+    model: config.ai.model,
     max_tokens: 4096,
     temperature: 0.7,
-    system: `You are Teddy, the AI concierge for HuntLogic — a national hunting guide powered by real state agency data. You are knowledgeable, direct, and friendly — like a seasoned outfitter who genuinely wants hunters to fill their tags. Use specific numbers when available. When uncertain, say so clearly.`,
+    system: `You are ${config.app.aiAssistantName}, the AI concierge for ${config.app.brandName} — a national hunting guide powered by real state agency data. You are knowledgeable, direct, and friendly — like a seasoned outfitter who genuinely wants hunters to fill their tags. Use specific numbers when available. When uncertain, say so clearly.`,
     messages: [{ role: "user", content: message }],
   });
 
@@ -312,8 +314,8 @@ async function callAnthropicDirect(message: string): Promise<string> {
 
 export async function GET() {
   return NextResponse.json({
-    concierge: "Teddy",
-    telegram: "@TeddyLogicBot",
+    concierge: config.app.aiAssistantName,
+    telegram: config.app.telegramBot,
     status: "online",
   });
 }

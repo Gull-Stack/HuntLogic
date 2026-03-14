@@ -2,6 +2,8 @@
 // Auth Layout — Clean, centered layout for login/signup/verify pages
 // =============================================================================
 
+import { config } from "@/lib/config";
+
 export default function AuthLayout({
   children,
 }: {
@@ -20,7 +22,7 @@ export default function AuthLayout({
       {/* Logo */}
       <div className="mb-8 text-center">
         <h1 className="text-3xl font-bold tracking-tight text-brand-forest dark:text-brand-cream">
-          HuntLogic
+          {config.app.brandName}
         </h1>
         <p className="mt-1 text-sm font-medium tracking-wider uppercase text-brand-sage">
           Your AI-Powered Hunt Strategist

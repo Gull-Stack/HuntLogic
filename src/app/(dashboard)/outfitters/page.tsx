@@ -24,6 +24,14 @@ export default function OutfittersPage() {
   const [stateFilter, setStateFilter] = useState("");
   const [speciesFilter, setSpeciesFilter] = useState("");
   const [priceFilter, setPriceFilter] = useState("");
+  const [stateOptions, setStateOptions] = useState<{ code: string; name: string }[]>([]);
+
+  useEffect(() => {
+    fetch("/api/v1/explore/states")
+      .then((res) => (res.ok ? res.json() : { states: [] }))
+      .then((data) => setStateOptions(data.states ?? []))
+      .catch(() => {});
+  }, []);
 
   const fetchOutfitters = useCallback(async () => {
     setLoading(true);
@@ -83,13 +91,11 @@ export default function OutfittersPage() {
             className="min-h-[44px] appearance-none rounded-[10px] border border-brand-sage/20 bg-white pl-3 pr-8 py-2 text-sm text-brand-bark dark:border-brand-sage/30 dark:bg-brand-bark dark:text-brand-cream"
           >
             <option value="">All States</option>
-            {["CO", "WY", "MT", "ID", "NM", "AZ", "UT", "NV", "OR"].map(
-              (s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              )
-            )}
+            {stateOptions.map((s) => (
+              <option key={s.code} value={s.code}>
+                {s.name || s.code}
+              </option>
+            ))}
           </select>
           <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-sage" />
         </div>

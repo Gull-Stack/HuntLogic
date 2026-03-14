@@ -9,6 +9,8 @@ import {
   Sparkles,
   BookOpen,
 } from "lucide-react";
+import { DEFAULT_PRICING, formatMonthlyPrice } from "@/lib/config/pricing";
+import { config } from "@/lib/config";
 
 // ---------------------------------------------------------------------------
 // Marketing page configuration
@@ -22,25 +24,13 @@ const MARKETING_STATS = [
   { label: "Deadlines Managed", value: "50k+" },
 ];
 
-// Pricing configuration — update via appConfig table or Stripe dashboard
-const PRICING_TIERS = [
-  {
-    name: "Scout",
-    price: "Free",
-    features: ["Basic recommendations", "3 states", "Deadline alerts"],
-  },
-  {
-    name: "Hunter",
-    price: "$9/mo",
-    features: ["AI playbook", "All states", "Point strategy", "Priority support"],
-    highlighted: true,
-  },
-  {
-    name: "Outfitter",
-    price: "$29/mo",
-    features: ["Everything in Hunter", "Multi-hunter", "API access", "Custom reports"],
-  },
-];
+// Pricing configuration — loaded from @/lib/config/pricing with DB override support
+const PRICING_TIERS = DEFAULT_PRICING.map((tier) => ({
+  name: tier.name,
+  price: formatMonthlyPrice(tier.monthlyPrice),
+  features: tier.features.slice(0, 4), // Teaser shows first 4 features
+  highlighted: tier.highlighted,
+}));
 
 // ---------------------------------------------------------------------------
 
@@ -108,7 +98,7 @@ export default function LandingPage() {
           <div className="flex items-center gap-2">
             <Target className="h-6 w-6 text-brand-forest dark:text-brand-cream" />
             <span className="text-lg font-bold text-brand-forest dark:text-brand-cream">
-              HuntLogic
+              {config.app.brandName}
             </span>
           </div>
           <div className="flex items-center gap-3">
@@ -325,7 +315,7 @@ export default function LandingPage() {
           <div className="flex items-center gap-2">
             <Target className="h-5 w-5 text-brand-sage" />
             <span className="text-sm font-semibold text-brand-sage">
-              HuntLogic Concierge
+              {config.app.name}
             </span>
           </div>
           <div className="flex gap-6 text-sm text-brand-sage">
@@ -340,7 +330,7 @@ export default function LandingPage() {
             </Link>
           </div>
           <p className="text-xs text-brand-sage/60">
-            &copy; {new Date().getFullYear()} HuntLogic. All rights reserved.
+            &copy; {new Date().getFullYear()} {config.app.brandName}. All rights reserved.
           </p>
         </div>
       </footer>

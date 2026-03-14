@@ -6,6 +6,7 @@
 // =============================================================================
 
 import { startIngestionService, stopIngestionService, triggerSource } from "./index";
+import { config } from "../../lib/config";
 import { db } from "../../lib/db";
 import { dataSources } from "../../lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -28,7 +29,7 @@ async function triggerAllSources() {
 }
 
 async function main() {
-  console.log("HuntLogic Ingestion Service starting...\n");
+  console.log(`${config.app.name} Ingestion Service starting...\n`);
 
   // Handle graceful shutdown
   const shutdown = async (signal: string) => {

@@ -31,13 +31,13 @@ export default function DashboardPage() {
 
   const fetchDashboard = useCallback(async () => {
     try {
-      // Fetch session first to get user name
+      // Fetch session first to get user name — use cache for data that doesn't change every second
       const [sessionRes, deadlinesRes, actionsRes, recsRes, profileRes] = await Promise.all([
-        apiClient.get<{ authenticated: boolean; user?: { name?: string; id?: string } }>("/auth/session"),
-        apiClient.get<{ deadlines: { id: string; stateName: string; stateCode: string; title: string; deadlineDate: string; deadlineType: string }[] }>("/deadlines?upcoming=true"),
-        apiClient.get<{ actions: { id: string; title: string; description?: string; actionType: string; priority: string; dueDate?: string; metadata?: { actionUrl?: string }; status?: string }[] }>("/actions"),
-        apiClient.get<{ recommendations: { id: string; stateCode?: string; speciesSlug?: string }[]; playbookId?: string }>("/recommendations"),
-        apiClient.get<{ data: { pointHoldings?: { stateCode: string; points: number }[] } }>("/profile"),
+        apiClient.getCached<{ authenticated: boolean; user?: { name?: string; id?: string } }>("/auth/session", { staleMs: 30_000 }),
+        apiClient.getCached<{ deadlines: { id: string; stateName: string; stateCode: string; title: string; deadlineDate: string; deadlineType: string }[] }>("/deadlines?upcoming=true", { staleMs: 30_000 }),
+        apiClient.getCached<{ actions: { id: string; title: string; description?: string; actionType: string; priority: string; dueDate?: string; metadata?: { actionUrl?: string }; status?: string }[] }>("/actions", { staleMs: 30_000 }),
+        apiClient.getCached<{ recommendations: { id: string; stateCode?: string; speciesSlug?: string }[]; playbookId?: string }>("/recommendations", { staleMs: 30_000 }),
+        apiClient.getCached<{ data: { pointHoldings?: { stateCode: string; points: number }[] } }>("/profile", { staleMs: 30_000 }),
       ]);
 
       const userName = sessionRes.data?.user?.name?.split(" ")[0] || "Hunter";

@@ -2,10 +2,15 @@
 // Intelligence Engine Configuration
 // =============================================================================
 // All tuning parameters for scoring, forecasting, and recommendations.
-// Centralized here for easy adjustment and future DB-driven configuration.
+// Centralized here for easy adjustment and DB-driven override support.
+// Use loadScoringConfig() to get config with DB overrides merged in.
 // =============================================================================
 
 import type { ScoringWeights } from "./types";
+import { db } from "@/lib/db";
+import { appConfig } from "@/lib/db/schema/config";
+import { eq } from "drizzle-orm";
+import { config } from "@/lib/config";
 
 // =============================================================================
 // Scoring Configuration
@@ -350,3 +355,40 @@ export const FEEDBACK_CONFIG = {
   minValue: -1,
   maxValue: 1,
 };
+
+// =============================================================================
+// DB-Driven Config Loader
+// =============================================================================
+
+// Cache for DB-loaded config overrides
+let configOverrides: Record<string, unknown> | null = null;
+let configLoadedAt = 0;
+const CONFIG_TTL_MS = config.cache.configTtlMs;
+
+/**
+ * Load scoring config with DB overrides merged in.
+ * DB values in namespace "scoring" override the defaults.
+ * Results are cached for CONFIG_TTL_MS (5 minutes).
+ */
+export async function loadScoringConfig(): Promise<typeof SCORING_CONFIG> {
+  if (configOverrides && Date.now() - configLoadedAt < CONFIG_TTL_MS) {
+    return { ...SCORING_CONFIG, ...configOverrides } as typeof SCORING_CONFIG;
+  }
+
+  try {
+    const rows = await db
+      .select()
+      .from(appConfig)
+      .where(eq(appConfig.namespace, "scoring"));
+
+    configOverrides = {};
+    for (const row of rows) {
+      configOverrides[row.key] = row.value;
+    }
+    configLoadedAt = Date.now();
+
+    return { ...SCORING_CONFIG, ...configOverrides } as typeof SCORING_CONFIG;
+  } catch {
+    return SCORING_CONFIG;
+  }
+}

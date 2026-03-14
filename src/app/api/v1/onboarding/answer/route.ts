@@ -3,18 +3,9 @@
 // =============================================================================
 
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 import { processAnswer } from "@/services/onboarding";
 import type { OnboardingAnswer } from "@/services/onboarding";
-
-/**
- * Placeholder auth.
- */
-function getUserIdFromRequest(request: NextRequest): string | null {
-  const userIdHeader = request.headers.get("x-user-id");
-  if (userIdHeader) return userIdHeader;
-  const url = new URL(request.url);
-  return url.searchParams.get("userId");
-}
 
 // =============================================================================
 // POST /api/v1/onboarding/answer — Submit answer to current question
@@ -22,7 +13,8 @@ function getUserIdFromRequest(request: NextRequest): string | null {
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = getUserIdFromRequest(request);
+    const session = await auth();
+    const userId = session?.user?.id;
     if (!userId) {
       return NextResponse.json(
         { error: "Unauthorized", message: "User ID is required" },

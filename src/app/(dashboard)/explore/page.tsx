@@ -50,8 +50,8 @@ export default function ExplorePage() {
   const fetchData = useCallback(async () => {
     try {
       const [statesRes, speciesRes] = await Promise.all([
-        apiClient.get<{ states: StateInfo[] }>("/explore/states"),
-        apiClient.get<{ species: SpeciesInfo[] }>("/explore/species"),
+        apiClient.getCached<{ states: StateInfo[] }>("/explore/states", { staleMs: 120_000 }),
+        apiClient.getCached<{ species: SpeciesInfo[] }>("/explore/species", { staleMs: 120_000 }),
       ]);
       setStates(statesRes.data?.states ?? []);
       setSpeciesList(speciesRes.data?.species ?? []);

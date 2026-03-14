@@ -52,10 +52,10 @@ export default function CalendarPage() {
   useEffect(() => {
     async function fetchDeadlines() {
       try {
-        const res = await fetch("/api/v1/calendar/deadlines");
+        const res = await fetch("/api/v1/deadlines?upcoming=true");
         if (res.ok) {
           const data = await res.json();
-          setDeadlines(data.data || data);
+          setDeadlines(data.deadlines || []);
         }
       } catch (err) {
         console.error("[calendar] Failed to fetch deadlines:", err);
@@ -94,7 +94,7 @@ export default function CalendarPage() {
     const ics = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
-      "PRODID:-//HuntLogic//Concierge//EN",
+      `PRODID:-//${process.env.NEXT_PUBLIC_BRAND_NAME || "HuntLogic"}//Concierge//EN`,
       "BEGIN:VEVENT",
       `DTSTART;VALUE=DATE:${formatIcsDate(start).split("T")[0]}`,
       `DTEND;VALUE=DATE:${formatIcsDate(end).split("T")[0]}`,

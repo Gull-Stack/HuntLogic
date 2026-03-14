@@ -12,6 +12,7 @@ import { documents } from "../../../lib/db/schema";
 import { redisConnection } from "../queue";
 import { QualityScorer } from "../normalizers/quality-scorer";
 import type { EmbedJobData } from "../types";
+import { config } from "@/lib/config";
 
 const QUEUE_NAME = "ingestion-embed";
 const LOG_PREFIX = "[ingestion:embed]";
@@ -19,7 +20,7 @@ const LOG_PREFIX = "[ingestion:embed]";
 const qualityScorer = new QualityScorer();
 
 // ---------------------------------------------------------------------------
-// Embedding generation via Gemini gemini-embedding-001
+// Embedding generation via configurable model (default: gemini-embedding-001)
 // ---------------------------------------------------------------------------
 
 import { GoogleGenAI } from "@google/genai";
@@ -49,7 +50,7 @@ async function generateEmbedding(text: string): Promise<number[] | null> {
   if (!ai) return null;
 
   const result = await ai.models.embedContent({
-    model: "gemini-embedding-001",
+    model: config.ai.embeddingModel,
     contents: truncated,
     config: { outputDimensionality: 768 },
   });

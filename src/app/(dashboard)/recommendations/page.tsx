@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { RecommendationCard } from "@/components/hunt/RecommendationCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SkeletonList } from "@/components/ui/Skeleton";
 import { Compass, SlidersHorizontal } from "lucide-react";
 import type { RecommendationOutput } from "@/services/intelligence/types";
+import { fetchWithCache, invalidateCache } from "@/lib/api/cache";
 
 type FilterValue = "all" | "this_year" | "trophy" | "opportunity" | "by_state";
 type SortValue = "best_match" | "draw_odds" | "cost" | "timeline";
@@ -44,20 +46,77 @@ async function submitFeedback(
 }
 
 export default function RecommendationsPage() {
+  const router = useRouter();
   const [recommendations, setRecommendations] = useState<RecommendationOutput[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterValue>("all");
   const [activeSort, setActiveSort] = useState<SortValue>("best_match");
   const [showSortMenu, setShowSortMenu] = useState(false);
 
+  const handleApplyForMe = useCallback(
+    async (recommendation: RecommendationOutput) => {
+      try {
+        // 1. Check for existing draft orders
+        const draftsRes = await fetch("/api/v1/concierge/orders?status=draft");
+        if (!draftsRes.ok) throw new Error("Failed to fetch draft orders");
+        const draftsJson = await draftsRes.json();
+        const drafts = draftsJson.data?.orders ?? [];
+
+        let orderId: string;
+
+        if (drafts.length > 0) {
+          // Use existing draft
+          orderId = drafts[0].id;
+        } else {
+          // 2. Create a new draft order
+          const createRes = await fetch("/api/v1/concierge/orders", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ year: new Date().getFullYear() }),
+          });
+          if (!createRes.ok) throw new Error("Failed to create order");
+          const createJson = await createRes.json();
+          orderId = createJson.data?.order?.id ?? createJson.order?.id;
+        }
+
+        // 3. Add the recommendation as an item
+        // Default to nonresident since residency isn't on the recommendation —
+        // user can change in the cart before checkout.
+        const addItemRes = await fetch(
+          `/api/v1/concierge/orders/${orderId}/items`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              stateId: recommendation.hunt.stateId,
+              speciesId: recommendation.hunt.speciesId,
+              residency: "nonresident",
+              recommendationId: recommendation.id,
+            }),
+          }
+        );
+        if (!addItemRes.ok) throw new Error("Failed to add item to order");
+
+        // 4. Navigate to cart
+        router.push("/orders/cart");
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Something went wrong";
+        console.error("[recommendations] Apply for me failed:", message);
+        alert(`Could not add to cart: ${message}`);
+      }
+    },
+    [router]
+  );
+
   useEffect(() => {
     async function fetchRecommendations() {
       try {
-        const res = await fetch("/api/v1/recommendations");
-        if (res.ok) {
-          const data = await res.json();
-          setRecommendations(data.data || data);
-        }
+        const data = await fetchWithCache<{ recommendations: RecommendationOutput[] }>(
+          "/api/v1/recommendations",
+          { staleMs: 30_000 }
+        );
+        setRecommendations(data.recommendations || []);
       } catch (err) {
         console.error("[recommendations] Failed to fetch:", err);
       } finally {
@@ -194,8 +253,9 @@ export default function RecommendationsPage() {
             <RecommendationCard
               key={rec.id}
               recommendation={rec}
+              onApplyForMe={handleApplyForMe}
               onSave={(id) => {
-                submitFeedback(id, "save");
+                submitFeedback(id, "save").then(() => invalidateCache("/api/v1/recommendations"));
                 setRecommendations((prev) =>
                   prev.map((r) =>
                     r.id === id
@@ -205,7 +265,7 @@ export default function RecommendationsPage() {
                 );
               }}
               onDismiss={(id) => {
-                submitFeedback(id, "dismiss");
+                submitFeedback(id, "dismiss").then(() => invalidateCache("/api/v1/recommendations"));
                 setRecommendations((prev) =>
                   prev.filter((r) => r.id !== id)
                 );
@@ -215,14 +275,7 @@ export default function RecommendationsPage() {
         </div>
       )}
 
-      {/* Load more */}
-      {sortedRecs.length > 0 && sortedRecs.length >= 3 && (
-        <div className="text-center pt-2">
-          <button className="text-sm font-medium text-brand-sage hover:text-brand-forest transition-colors">
-            Load more recommendations
-          </button>
-        </div>
-      )}
+      {/* TODO: Add pagination when API supports offset/limit */}
     </div>
   );
 }

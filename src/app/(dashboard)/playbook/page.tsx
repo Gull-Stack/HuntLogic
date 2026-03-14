@@ -6,6 +6,7 @@ import { SkeletonList } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { BookOpen } from "lucide-react";
 import type { PlaybookData } from "@/services/intelligence/types";
+import { fetchWithCache, invalidateCache } from "@/lib/api/cache";
 
 export default function PlaybookPage() {
   const [playbook, setPlaybook] = useState<PlaybookData | null>(null);
@@ -16,15 +17,15 @@ export default function PlaybookPage() {
   useEffect(() => {
     async function fetchPlaybook() {
       try {
-        const res = await fetch("/api/v1/playbook");
-        if (res.ok) {
-          const data = await res.json();
-          setPlaybook(data);
-        } else if (res.status === 404) {
-          setPlaybook(null);
-        }
+        const data = await fetchWithCache<{ playbook: PlaybookData | null }>(
+          "/api/v1/playbook",
+          { staleMs: 60_000 }
+        );
+        setPlaybook(data.playbook ?? null);
       } catch (err) {
+        // fetchWithCache throws on non-ok responses; treat 404 as no playbook
         console.error("[playbook] Failed to fetch:", err);
+        setPlaybook(null);
       } finally {
         setIsLoading(false);
       }
@@ -36,10 +37,11 @@ export default function PlaybookPage() {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      const res = await fetch("/api/v1/playbook/refresh", { method: "POST" });
+      const res = await fetch("/api/v1/playbook", { method: "POST" });
       if (res.ok) {
         const data = await res.json();
-        setPlaybook(data);
+        setPlaybook(data.playbook ?? null);
+        invalidateCache("/api/v1/playbook");
       }
     } catch (err) {
       console.error("[playbook] Failed to refresh:", err);

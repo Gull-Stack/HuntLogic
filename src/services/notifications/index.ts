@@ -6,70 +6,215 @@ import { db } from "@/lib/db";
 import { notifications, notificationPreferences } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+type NotificationType =
+  | "deadline_reminder"
+  | "draw_result"
+  | "point_creep"
+  | "strategy_update"
+  | "welcome"
+  | "system"
+  | "order_paid"
+  | "application_submitted"
+  | "payment_failed";
+
 interface CreateNotificationInput {
   userId: string;
-  type: "deadline_reminder" | "draw_result" | "point_creep" | "strategy_update" | "welcome" | "system";
+  type: NotificationType;
   title: string;
   body: string;
   actionUrl?: string;
+  channel?: "in_app" | "email" | "push";
   metadata?: Record<string, unknown>;
 }
 
-export async function createNotification(input: CreateNotificationInput) {
-  // Check user preferences
+// ---------------------------------------------------------------------------
+// Preference-gated notification types.
+// Transactional types (order_paid, payment_failed, application_submitted)
+// are always sent regardless of preference toggles.
+// ---------------------------------------------------------------------------
+
+const PREFERENCE_GATED: Partial<
+  Record<NotificationType, keyof typeof PREF_KEY_MAP>
+> = {
+  deadline_reminder: "deadlineReminders",
+  draw_result: "drawResults",
+  strategy_update: "strategyUpdates",
+  point_creep: "pointCreepAlerts",
+};
+
+const PREF_KEY_MAP = {
+  deadlineReminders: "deadlineReminders",
+  drawResults: "drawResults",
+  strategyUpdates: "strategyUpdates",
+  pointCreepAlerts: "pointCreepAlerts",
+} as const;
+
+// ---------------------------------------------------------------------------
+// Core: createNotification
+// ---------------------------------------------------------------------------
+
+export async function createNotification(
+  input: CreateNotificationInput
+): Promise<void> {
+  const prefKey = PREFERENCE_GATED[input.type];
+
+  // Check user preferences — only for gated types
+  if (prefKey) {
+    const prefs = await db.query.notificationPreferences.findFirst({
+      where: eq(notificationPreferences.userId, input.userId),
+    });
+
+    if (prefs && !prefs[prefKey]) {
+      console.log(
+        `[notifications] Skipped ${input.type} for user ${input.userId} — preference disabled`
+      );
+      return;
+    }
+  }
+
+  // Insert the in-app notification
+  await db.insert(notifications).values({
+    userId: input.userId,
+    type: input.type,
+    channel: input.channel ?? "in_app",
+    title: input.title,
+    body: input.body,
+    actionUrl: input.actionUrl,
+    metadata: input.metadata ?? {},
+  });
+
+  console.log(
+    `[notifications] Created ${input.type} notification for user ${input.userId}`
+  );
+
+  // Send email if enabled (non-blocking)
   const prefs = await db.query.notificationPreferences.findFirst({
     where: eq(notificationPreferences.userId, input.userId),
   });
 
-  // Check if notification type is enabled
-  if (prefs) {
-    if (input.type === "deadline_reminder" && !prefs.deadlineReminders) return null;
-    if (input.type === "draw_result" && !prefs.drawResults) return null;
-    if (input.type === "strategy_update" && !prefs.strategyUpdates) return null;
-    if (input.type === "point_creep" && !prefs.pointCreepAlerts) return null;
-  }
-
-  // Create in-app notification
-  const [notification] = await db
-    .insert(notifications)
-    .values({
-      userId: input.userId,
-      type: input.type,
-      channel: "in_app",
-      title: input.title,
-      body: input.body,
-      actionUrl: input.actionUrl,
-      metadata: input.metadata ?? {},
-    })
-    .returning();
-
-  // Send email if enabled
   if (!prefs || prefs.emailEnabled) {
-    await sendEmailNotification(input).catch((err) => {
+    sendEmailNotification(input).catch((err) => {
       console.warn("[notifications] Email send failed:", err);
     });
   }
-
-  return notification;
 }
+
+// ---------------------------------------------------------------------------
+// Convenience: notifyOrderPaid
+// Transactional — always sent.
+// ---------------------------------------------------------------------------
+
+export async function notifyOrderPaid(
+  userId: string,
+  orderId: string,
+  orderNumber: string,
+  amount: string
+): Promise<void> {
+  await createNotification({
+    userId,
+    type: "order_paid",
+    title: "Payment Confirmed",
+    body: `Your order ${orderNumber} for $${amount} has been received. Our team will begin processing your applications shortly.`,
+    actionUrl: `/orders/${orderId}`,
+    metadata: { orderId, orderNumber, amount },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Convenience: notifyApplicationSubmitted
+// Transactional — always sent.
+// ---------------------------------------------------------------------------
+
+export async function notifyApplicationSubmitted(
+  userId: string,
+  orderId: string,
+  stateName: string,
+  speciesName: string
+): Promise<void> {
+  await createNotification({
+    userId,
+    type: "application_submitted",
+    title: "Application Submitted",
+    body: `Your ${speciesName} application for ${stateName} has been submitted successfully.`,
+    actionUrl: `/orders/${orderId}`,
+    metadata: { orderId, stateName, speciesName },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Convenience: notifyDrawResult
+// Gated by drawResults preference.
+// ---------------------------------------------------------------------------
+
+export async function notifyDrawResult(
+  userId: string,
+  orderId: string,
+  stateName: string,
+  speciesName: string,
+  result: "drawn" | "unsuccessful"
+): Promise<void> {
+  const isDrawn = result === "drawn";
+  await createNotification({
+    userId,
+    type: "draw_result",
+    title: isDrawn ? "Congratulations — Tag Drawn!" : "Draw Result — Unsuccessful",
+    body: isDrawn
+      ? `Great news! You were drawn for ${speciesName} in ${stateName}. Check your order for next steps.`
+      : `Unfortunately, your ${speciesName} application for ${stateName} was unsuccessful this year. Your preference points have been updated.`,
+    actionUrl: `/orders/${orderId}`,
+    metadata: { orderId, stateName, speciesName, result },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Convenience: notifyPaymentFailed
+// Transactional — always sent.
+// ---------------------------------------------------------------------------
+
+export async function notifyPaymentFailed(
+  userId: string,
+  orderId: string,
+  reason: string
+): Promise<void> {
+  await createNotification({
+    userId,
+    type: "payment_failed",
+    title: "Payment Failed",
+    body: `Your payment could not be processed: ${reason}. Please update your payment method to avoid missing application deadlines.`,
+    actionUrl: `/orders/${orderId}`,
+    metadata: { orderId, reason },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Bulk notification helper
+// ---------------------------------------------------------------------------
 
 export async function createBulkNotifications(
   userIds: string[],
   notification: Omit<CreateNotificationInput, "userId">
-) {
-  const results = [];
+): Promise<void> {
   for (const userId of userIds) {
-    const result = await createNotification({ ...notification, userId });
-    if (result) results.push(result);
+    await createNotification({ ...notification, userId });
   }
-  return results;
 }
 
-async function sendEmailNotification(input: CreateNotificationInput) {
+// ---------------------------------------------------------------------------
+// Internal: email delivery via Resend
+// ---------------------------------------------------------------------------
+
+async function sendEmailNotification(
+  input: CreateNotificationInput
+): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return;
 
-  const fromEmail = process.env.EMAIL_FROM ?? "HuntLogic <noreply@huntlogic.com>";
+  const fromEmail =
+    process.env.EMAIL_FROM ?? "HuntLogic <noreply@huntlogic.com>";
 
   // Get user email
   const user = await db.query.users.findFirst({

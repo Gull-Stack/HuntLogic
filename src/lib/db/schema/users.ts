@@ -28,6 +28,8 @@ export const users = pgTable(
     avatarUrl: text("avatar_url"),
     onboardingStep: text("onboarding_step").notNull().default("welcome"),
     onboardingComplete: boolean("onboarding_complete").notNull().default(false),
+    stripeCustomerId: text("stripe_customer_id").unique(),
+    tier: text("tier").notNull().default("scout"), // 'scout' | 'pro' | 'elite'
     timezone: text("timezone").notNull().default("America/Denver"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

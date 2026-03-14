@@ -52,7 +52,7 @@ export default function ProfilePage() {
         const res = await fetch("/api/v1/profile");
         if (res.ok) {
           const data = await res.json();
-          setProfile(data);
+          setProfile(data.data);
         }
       } catch {
         setProfile(mockProfile);

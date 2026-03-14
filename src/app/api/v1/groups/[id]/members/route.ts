@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { huntGroups, huntGroupMembers, users } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
+import { config } from "@/lib/config";
 
 export async function POST(
   request: NextRequest,
@@ -80,13 +81,13 @@ export async function POST(
         const resend = new Resend(apiKey);
 
         await resend.emails.send({
-          from: process.env.EMAIL_FROM ?? "HuntLogic <noreply@huntlogic.com>",
+          from: config.auth.emailFrom,
           to: email,
-          subject: `${ownerUser?.displayName ?? "A hunter"} invited you to plan a hunt on HuntLogic`,
+          subject: `${ownerUser?.displayName ?? "A hunter"} invited you to plan a hunt on ${config.app.brandName}`,
           html: `
             <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-              <div style="background: linear-gradient(135deg, #1A3C2A, #2A5C40); padding: 24px; border-radius: 12px 12px 0 0;">
-                <h2 style="color: #F5F5F0; margin: 0; font-size: 18px;">HuntLogic</h2>
+              <div style="background: linear-gradient(135deg, ${config.app.brandColor}, #2A5C40); padding: 24px; border-radius: 12px 12px 0 0;">
+                <h2 style="color: #F5F5F0; margin: 0; font-size: 18px;">${config.app.brandName}</h2>
               </div>
               <div style="background: #ffffff; padding: 24px; border: 1px solid #E0DDD5; border-top: none; border-radius: 0 0 12px 12px;">
                 <h3 style="color: #2D1F0E; margin: 0 0 12px 0;">You've been invited to a hunt group!</h3>
@@ -96,7 +97,7 @@ export async function POST(
                 <p style="color: #6B7B6E; line-height: 1.6; margin: 0 0 20px 0;">
                   Plan hunts together, compare draw odds, and coordinate logistics — all in one place.
                 </p>
-                <a href="https://huntlogic.vercel.app/groups" style="display: inline-block; background: linear-gradient(135deg, #C4651A, #D4A03C); color: #ffffff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">Join the Group</a>
+                <a href="${config.app.url}/groups" style="display: inline-block; background: linear-gradient(135deg, ${config.app.brandAccent}, ${config.app.brandAccentSecondary}); color: #ffffff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">Join the Group</a>
               </div>
             </div>
           `,

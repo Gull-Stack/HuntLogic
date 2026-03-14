@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { appConfig } from "@/lib/db/schema";
+import { config } from "@/lib/config";
 import { eq, like } from "drizzle-orm";
 
 export interface TenantConfig {
@@ -14,17 +15,16 @@ export interface TenantConfig {
 
 const DEFAULT_CONFIG: TenantConfig = {
   id: "huntlogic",
-  brandName: "HuntLogic",
+  brandName: config.app.brandName,
   logoUrl: "/logo.svg",
   primaryColor: "#1A3C2A",
   ctaGradient: "linear-gradient(135deg, #C4651A, #D4A03C)",
-  supportEmail: "support@huntlogic.com",
+  supportEmail: config.app.supportEmail,
   featuresEnabled: ["all"],
 };
 
-// In-memory cache with 1-hour TTL
+// In-memory cache with configurable TTL
 const cache = new Map<string, { config: TenantConfig; expiry: number }>();
-const CACHE_TTL_MS = 60 * 60 * 1000;
 
 /**
  * Detect tenant from request headers/hostname.
@@ -74,7 +74,7 @@ export async function getTenantConfig(
       // No tenant config found — use defaults
       cache.set(tenantId, {
         config: DEFAULT_CONFIG,
-        expiry: Date.now() + CACHE_TTL_MS,
+        expiry: Date.now() + config.cache.configTtlMs,
       });
       return DEFAULT_CONFIG;
     }
@@ -86,7 +86,7 @@ export async function getTenantConfig(
       configMap.set(key, row.value);
     }
 
-    const config: TenantConfig = {
+    const tenantCfg: TenantConfig = {
       id: tenantId,
       brandName: (configMap.get("brand_name") as string) ?? DEFAULT_CONFIG.brandName,
       logoUrl: (configMap.get("logo_url") as string) ?? DEFAULT_CONFIG.logoUrl,
@@ -96,8 +96,8 @@ export async function getTenantConfig(
       featuresEnabled: (configMap.get("features_enabled") as string[]) ?? DEFAULT_CONFIG.featuresEnabled,
     };
 
-    cache.set(tenantId, { config, expiry: Date.now() + CACHE_TTL_MS });
-    return config;
+    cache.set(tenantId, { config: tenantCfg, expiry: Date.now() + config.cache.configTtlMs });
+    return tenantCfg;
   } catch (error) {
     console.error("[tenant] Failed to load config:", error);
     return DEFAULT_CONFIG;

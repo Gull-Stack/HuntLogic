@@ -48,11 +48,20 @@ export async function getNextQuestion(
   const profile = await getProfile(userId);
   const { completeness } = profile;
 
-  // 2. If playbook_ready, return null (done)
+  // 2. If playbook_ready, ensure DB is marked complete and return null
   if (completeness.isPlaybookReady) {
     console.log(
       `${LOG_PREFIX} Profile is playbook-ready (score=${completeness.score}), no more questions`
     );
+    // Safeguard: ensure onboardingComplete is written to DB
+    await db
+      .update(users)
+      .set({
+        onboardingComplete: true,
+        onboardingStep: "complete",
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
     return null;
   }
 
@@ -241,6 +250,19 @@ export async function processAnswer(
   // 6. Calculate new completeness
   const newCompleteness = await getProfileCompleteness(userId);
 
+  // 6a. If playbook-ready, mark onboarding complete in DB
+  if (newCompleteness.isPlaybookReady) {
+    await db
+      .update(users)
+      .set({
+        onboardingComplete: true,
+        onboardingStep: "complete",
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
+    console.log(`${LOG_PREFIX} Onboarding complete for ${userId} (score=${newCompleteness.score})`);
+  }
+
   // 7. Get next question preview (lightweight — just the ID and category)
   let nextQuestionPreview: OnboardingResult["nextQuestionPreview"] = null;
   if (!newCompleteness.isPlaybookReady) {
@@ -332,6 +354,19 @@ export async function skipQuestion(
 
   // Calculate new completeness
   const newCompleteness = await getProfileCompleteness(userId);
+
+  // If playbook-ready, mark onboarding complete in DB
+  if (newCompleteness.isPlaybookReady) {
+    await db
+      .update(users)
+      .set({
+        onboardingComplete: true,
+        onboardingStep: "complete",
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
+    console.log(`${LOG_PREFIX} Onboarding complete for ${userId} via skip (score=${newCompleteness.score})`);
+  }
 
   // Get next question preview
   let nextQuestionPreview: OnboardingResult["nextQuestionPreview"] = null;

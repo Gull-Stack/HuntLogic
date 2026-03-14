@@ -4,10 +4,11 @@ import { db } from "@/lib/db";
 import { stateCredentials } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { encryptCredentials } from "@/services/vault";
+import { config } from "@/lib/config";
 
 // In-memory rate limiter: userId -> { count, windowStart }
 const rateLimiter = new Map<string, { count: number; windowStart: number }>();
-const MAX_ATTEMPTS = 5;
+const MAX_ATTEMPTS = config.rateLimit.credentialMaxPerHour;
 const WINDOW_MS = 60 * 60 * 1000; // 1 hour
 
 function checkRateLimit(userId: string): boolean {

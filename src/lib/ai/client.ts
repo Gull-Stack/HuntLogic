@@ -1,23 +1,19 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { config } from "@/lib/config";
 
 // Singleton Claude client
 let clientInstance: Anthropic | null = null;
 
 export function getAnthropicClient(): Anthropic {
   if (!clientInstance) {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error("ANTHROPIC_API_KEY environment variable is not set");
-    }
+    const apiKey = config.ai.apiKey();
     clientInstance = new Anthropic({ apiKey });
   }
   return clientInstance;
 }
 
-export const DEFAULT_MODEL =
-  process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514";
-export const ADVANCED_MODEL =
-  process.env.ANTHROPIC_MODEL_ADVANCED || "claude-sonnet-4-20250514";
+export const DEFAULT_MODEL = config.ai.model;
+export const ADVANCED_MODEL = config.ai.advancedModel;
 
 export interface ChatMessage {
   role: "user" | "assistant";

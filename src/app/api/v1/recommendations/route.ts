@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
+import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
   recommendations,
@@ -24,8 +25,8 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
 
-    // Auth: get user ID from session/header (simplified for now)
-    const userId = request.headers.get("x-user-id");
+    const session = await auth();
+    const userId = session?.user?.id;
     if (!userId) {
       return NextResponse.json(
         { error: "Authentication required" },
@@ -182,7 +183,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = request.headers.get("x-user-id");
+    const session = await auth();
+    const userId = session?.user?.id;
     if (!userId) {
       return NextResponse.json(
         { error: "Authentication required" },

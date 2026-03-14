@@ -10,11 +10,13 @@ interface Message {
   content: string;
 }
 
+const aiName = process.env.NEXT_PUBLIC_AI_ASSISTANT_NAME || "Teddy";
+
 const WELCOME_MESSAGE: Message = {
   id: "welcome",
   role: "assistant",
   content:
-    "Hey, I'm Teddy — your personal hunting concierge. I know draw odds, point strategies, unit recommendations, season dates, and costs for all 50 states. Ask me anything about your next hunt.",
+    `Hey, I'm ${aiName} — your personal hunting concierge. I know draw odds, point strategies, unit recommendations, season dates, and costs for all 50 states. Ask me anything about your next hunt.`,
 };
 
 export function ChatContainer() {
@@ -82,7 +84,7 @@ export function ChatContainer() {
             m.id === assistantId
               ? {
                   ...m,
-                  content: errorMessage.includes("@TeddyLogicBot")
+                  content: errorMessage.includes("Telegram:")
                     ? errorMessage
                     : `Sorry, I couldn't process that. ${errorMessage}`,
                 }
@@ -106,7 +108,7 @@ export function ChatContainer() {
           </div>
           <div>
             <h2 className="text-sm font-semibold text-brand-bark dark:text-brand-cream">
-              Teddy
+              {aiName}
             </h2>
             <p className="text-xs text-brand-sage">
               Your AI hunting concierge
@@ -114,7 +116,7 @@ export function ChatContainer() {
           </div>
         </div>
         <a
-          href="https://t.me/TeddyLogicBot"
+          href={process.env.NEXT_PUBLIC_TELEGRAM_BOT_URL || "https://t.me/TeddyLogicBot"}
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-1.5 rounded-lg bg-[#229ED9]/10 px-3 py-1.5 text-xs font-medium text-[#229ED9] transition-colors hover:bg-[#229ED9]/20"

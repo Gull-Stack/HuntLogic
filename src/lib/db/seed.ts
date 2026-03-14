@@ -15,6 +15,9 @@ import {
   aiPrompts,
   appConfig,
 } from "./schema";
+import { seedFeeSchedules } from "./seeds/fee-schedules";
+import { seedServiceFees } from "./seeds/service-fees";
+import { seedFormConfigs } from "./seeds/form-configs";
 
 // ---------------------------------------------------------------------------
 // Connect to database
@@ -38,7 +41,7 @@ async function seed() {
   // --------------------------------------------------------------------------
   // 1. STATES — All 50 US states
   // --------------------------------------------------------------------------
-  console.log("[1/6] Seeding states...");
+  console.log("[1/9] Seeding states...");
 
   const allStates = [
     // Western draw states (primary focus)
@@ -118,7 +121,7 @@ async function seed() {
   // --------------------------------------------------------------------------
   // 2. SPECIES — Core hunting species
   // --------------------------------------------------------------------------
-  console.log("[2/6] Seeding species...");
+  console.log("[2/9] Seeding species...");
 
   const allSpecies = [
     { slug: "elk", commonName: "Elk", scientificName: "Cervus canadensis", category: "big_game", config: {}, enabled: true },
@@ -156,7 +159,7 @@ async function seed() {
   // --------------------------------------------------------------------------
   // 3. STATE-SPECIES MAPPINGS — Top 12 western draw states
   // --------------------------------------------------------------------------
-  console.log("[3/6] Seeding state-species mappings...");
+  console.log("[3/9] Seeding state-species mappings...");
 
   const sid = (code: string) => stateMap.get(code)!;
   const spid = (slug: string) => speciesMap.get(slug)!;
@@ -297,7 +300,7 @@ async function seed() {
   // --------------------------------------------------------------------------
   // 4. DATA SOURCES — Priority state ingestion sources
   // --------------------------------------------------------------------------
-  console.log("[4/6] Seeding data sources...");
+  console.log("[4/9] Seeding data sources...");
 
   const priorityDataSources = [
     // ====================================================================
@@ -1665,7 +1668,7 @@ async function seed() {
   // --------------------------------------------------------------------------
   // 5. AI PROMPTS — Default prompt templates
   // --------------------------------------------------------------------------
-  console.log("[5/6] Seeding AI prompts...");
+  console.log("[5/9] Seeding AI prompts...");
 
   const defaultPrompts = [
     {
@@ -1922,7 +1925,7 @@ Hunter's response: {{response_text}}`,
   // --------------------------------------------------------------------------
   // 6. APP CONFIG — Default configuration
   // --------------------------------------------------------------------------
-  console.log("[6/6] Seeding app config...");
+  console.log("[6/9] Seeding app config...");
 
   const defaultConfigs = [
     {
@@ -1985,6 +1988,24 @@ Hunter's response: {{response_text}}`,
   console.log(`  -> ${insertedConfigs.length} app config entries inserted (${defaultConfigs.length} total)`);
 
   // --------------------------------------------------------------------------
+  // 7. FEE SCHEDULES — State fee data for 5 launch states
+  // --------------------------------------------------------------------------
+  console.log("[7/9] Seeding fee schedules...");
+  await seedFeeSchedules();
+
+  // --------------------------------------------------------------------------
+  // 8. SERVICE FEES — HuntLogic concierge pricing tiers
+  // --------------------------------------------------------------------------
+  console.log("[8/9] Seeding service fees...");
+  await seedServiceFees();
+
+  // --------------------------------------------------------------------------
+  // 9. STATE FORM CONFIGS — Application form schemas per state
+  // --------------------------------------------------------------------------
+  console.log("[9/9] Seeding state form configs...");
+  await seedFormConfigs();
+
+  // --------------------------------------------------------------------------
   // Summary
   // --------------------------------------------------------------------------
   console.log("\n=== Seed Summary ===");
@@ -1994,6 +2015,9 @@ Hunter's response: {{response_text}}`,
   console.log(`  Data Sources:         ${priorityDataSources.length}`);
   console.log(`  AI Prompts:           ${defaultPrompts.length}`);
   console.log(`  App Config:           ${defaultConfigs.length}`);
+  console.log(`  Fee Schedules:        (see above)`);
+  console.log(`  Service Fees:         (see above)`);
+  console.log(`  Form Configs:         (see above)`);
   console.log("=== Seed complete ===\n");
 }
 

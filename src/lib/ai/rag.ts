@@ -1,7 +1,7 @@
 /**
  * RAG (Retrieval-Augmented Generation) Pipeline
  *
- * 1. Embedding generation via Gemini gemini-embedding-001
+ * 1. Embedding generation via configurable model (default: gemini-embedding-001)
  * 2. Semantic search via cosine_similarity() on real[] columns
  * 3. Context assembly for Claude prompts
  */
@@ -9,6 +9,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { db } from "@/lib/db";
 import { sql } from "drizzle-orm";
+import { config } from "@/lib/config";
 
 let geminiClient: GoogleGenAI | null = null;
 
@@ -35,7 +36,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
   const truncated = text.slice(0, 32_000);
   const ai = getGemini();
   const result = await ai.models.embedContent({
-    model: "gemini-embedding-001",
+    model: config.ai.embeddingModel,
     contents: truncated,
     config: { outputDimensionality: 768 },
   });

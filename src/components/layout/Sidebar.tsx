@@ -19,9 +19,10 @@ import {
   Dice5,
   Users,
   MapPin,
-  ClipboardList,
+  ShoppingCart,
 } from "lucide-react";
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { useTenant } from "@/components/providers/TenantProvider";
 
 const mainNavItems = [
@@ -34,7 +35,7 @@ const mainNavItems = [
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/groups", label: "Groups", icon: Users },
   { href: "/outfitters", label: "Outfitters", icon: MapPin },
-  { href: "/applications", label: "Applications", icon: ClipboardList },
+  { href: "/orders", label: "Orders", icon: ShoppingCart },
   { href: "/chat", label: "Chat", icon: MessageCircle },
 ];
 
@@ -48,6 +49,9 @@ export function Sidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const { tenantConfig } = useTenant();
+  const { data: session } = useSession();
+  const userName = session?.user?.name || "Hunter";
+  const userInitial = userName.charAt(0).toUpperCase();
 
   return (
     <aside
@@ -148,12 +152,12 @@ export function Sidebar() {
       )}>
         <div className={cn("flex items-center gap-3", collapsed && "justify-center")}>
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-forest text-sm font-bold text-brand-cream">
-            H
+            {userInitial}
           </div>
           {!collapsed && (
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-brand-bark dark:text-brand-cream">
-                Hunter
+                {userName}
               </p>
               <p className="truncate text-xs text-brand-sage">
                 Free Plan

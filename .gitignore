@@ -87,3 +87,4 @@ drizzle/meta/
 *.key
 credentials.json
 service-account.json
+.env.vercel-check
