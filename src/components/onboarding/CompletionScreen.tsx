@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Check, Sparkles } from "lucide-react";
@@ -19,6 +20,16 @@ export function CompletionScreen({
   onContinueRefining,
 }: CompletionScreenProps) {
   const router = useRouter();
+  const [isNavigating, setIsNavigating] = useState(false);
+
+  const handleViewPlaybook = async () => {
+    setIsNavigating(true);
+    // Mark onboarding complete in DB so middleware allows /dashboard
+    await fetch("/api/v1/onboarding/complete", { method: "POST" });
+    // Force JWT refresh so middleware sees onboardingComplete = true
+    await fetch("/api/auth/session");
+    router.push("/dashboard");
+  };
 
   return (
     <div className="flex flex-col items-center justify-center px-4 py-8 text-center motion-safe:animate-fade-in">
@@ -97,7 +108,8 @@ export function CompletionScreen({
         <Button
           fullWidth
           size="lg"
-          onClick={() => router.push("/playbook")}
+          onClick={handleViewPlaybook}
+          isLoading={isNavigating}
           iconRight={<Sparkles className="h-5 w-5" />}
         >
           View Your Playbook

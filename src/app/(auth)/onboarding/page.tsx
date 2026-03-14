@@ -29,6 +29,12 @@ export default function OnboardingPage() {
     checkOnboardingStatus();
   }, [router]);
 
+  const handleSkipOnboarding = async () => {
+    await fetch("/api/v1/onboarding/complete", { method: "POST" });
+    await fetch("/api/auth/session");
+    router.push("/dashboard");
+  };
+
   if (isCheckingStatus) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-brand-cream dark:bg-brand-forest">
@@ -42,14 +48,23 @@ export default function OnboardingPage() {
       {/* Safe area top padding */}
       <div style={{ paddingTop: "env(safe-area-inset-top)" }} />
 
-      {/* Logo */}
-      <div className="px-4 pt-6 pb-2 text-center">
-        <h1 className="text-xl font-bold text-brand-forest dark:text-brand-cream">
-          HuntLogic
-        </h1>
-        <p className="text-xs font-medium tracking-wider uppercase text-brand-sage">
-          Concierge
-        </p>
+      {/* Header with logo and skip */}
+      <div className="flex items-center justify-between px-4 pt-6 pb-2">
+        <div className="w-16" />
+        <div className="text-center">
+          <h1 className="text-xl font-bold text-brand-forest dark:text-brand-cream">
+            {process.env.NEXT_PUBLIC_BRAND_NAME || "HuntLogic"}
+          </h1>
+          <p className="text-xs font-medium tracking-wider uppercase text-brand-sage">
+            Concierge
+          </p>
+        </div>
+        <button
+          onClick={handleSkipOnboarding}
+          className="w-16 text-right text-sm font-medium text-brand-sage hover:text-brand-forest transition-colors dark:hover:text-brand-cream"
+        >
+          Skip
+        </button>
       </div>
 
       {/* Onboarding Flow */}
