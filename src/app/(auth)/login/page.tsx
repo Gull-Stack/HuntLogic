@@ -24,8 +24,9 @@ function LoginForm() {
   const handleOAuthSignIn = async (provider: string) => {
     setIsLoading(provider);
     try {
-      await signIn(provider, { callbackUrl });
-    } catch {
+      await signIn(provider, { callbackUrl, redirect: true });
+    } catch (err) {
+      console.error(`[auth] ${provider} sign-in failed:`, err);
       setIsLoading(null);
     }
   };
