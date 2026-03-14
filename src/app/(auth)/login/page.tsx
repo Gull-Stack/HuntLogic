@@ -22,9 +22,36 @@ function LoginForm() {
   const isSignup = searchParams.get("signup") === "true";
 
   const handleOAuthSignIn = async (provider: string) => {
+    console.log(`[auth] Starting ${provider} sign-in, callbackUrl=${callbackUrl}`);
     setIsLoading(provider);
     try {
-      await signIn(provider, { callbackUrl, redirect: true });
+      // Bypass next-auth/react client — redirect directly to the signin endpoint
+      const csrfRes = await fetch("/api/auth/csrf");
+      const { csrfToken } = await csrfRes.json();
+      console.log("[auth] Got CSRF token");
+
+      const res = await fetch(`/api/auth/signin/${provider}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "X-Auth-Return-Redirect": "1",
+        },
+        body: new URLSearchParams({
+          csrfToken,
+          callbackUrl: callbackUrl ?? window.location.href,
+        }),
+      });
+
+      const data = await res.json();
+      console.log("[auth] Signin response:", data);
+
+      if (data.url) {
+        console.log("[auth] Redirecting to:", data.url);
+        window.location.href = data.url;
+      } else {
+        console.error("[auth] No redirect URL in response");
+        setIsLoading(null);
+      }
     } catch (err) {
       console.error(`[auth] ${provider} sign-in failed:`, err);
       setIsLoading(null);
