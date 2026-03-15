@@ -4,9 +4,10 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { signIn } from "next-auth/react";
 import { useSearchParams, useRouter } from "next/navigation";
+// Google SSO now uses native form POST — no fetch, no JS redirect
 import Link from "next/link";
 import { Suspense } from "react";
 
@@ -21,42 +22,15 @@ function LoginForm() {
   const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard";
   const isSignup = searchParams.get("signup") === "true";
 
-  const handleOAuthSignIn = async (provider: string) => {
-    console.log(`[auth] Starting ${provider} sign-in, callbackUrl=${callbackUrl}`);
-    setIsLoading(provider);
-    try {
-      // Bypass next-auth/react client — redirect directly to the signin endpoint
-      const csrfRes = await fetch("/api/auth/csrf");
-      const { csrfToken } = await csrfRes.json();
-      console.log("[auth] Got CSRF token");
+  const [csrfToken, setCsrfToken] = useState("");
 
-      const res = await fetch(`/api/auth/signin/${provider}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "X-Auth-Return-Redirect": "1",
-        },
-        body: new URLSearchParams({
-          csrfToken,
-          callbackUrl: callbackUrl ?? window.location.href,
-        }),
-      });
-
-      const data = await res.json();
-      console.log("[auth] Signin response:", data);
-
-      if (data.url) {
-        console.log("[auth] Redirecting to:", data.url);
-        window.location.href = data.url;
-      } else {
-        console.error("[auth] No redirect URL in response");
-        setIsLoading(null);
-      }
-    } catch (err) {
-      console.error(`[auth] ${provider} sign-in failed:`, err);
-      setIsLoading(null);
-    }
-  };
+  // Fetch CSRF token on mount so the form can submit directly
+  useEffect(() => {
+    fetch("/api/auth/csrf")
+      .then((r) => r.json())
+      .then((d) => setCsrfToken(d.csrfToken))
+      .catch(() => {});
+  }, []);
 
   const handleEmailSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,17 +85,17 @@ function LoginForm() {
         </div>
       )}
 
-      {/* SSO Buttons */}
+      {/* SSO Buttons — native form POST, no JavaScript fetch */}
       <div className="mt-6 space-y-3">
         {/* Google */}
-        <button
-          onClick={() => handleOAuthSignIn("google")}
-          disabled={isLoading !== null}
-          className="flex w-full items-center justify-center gap-3 rounded-xl border border-brand-sage/20 bg-white px-4 py-3 text-sm font-medium text-brand-bark shadow-sm transition-all hover:bg-gray-50 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-brand-sage/30 dark:bg-brand-bark/30 dark:text-brand-cream dark:hover:bg-brand-bark/50"
-        >
-          {isLoading === "google" ? (
-            <LoadingSpinner />
-          ) : (
+        <form method="POST" action="/api/auth/signin/google">
+          <input type="hidden" name="csrfToken" value={csrfToken} />
+          <input type="hidden" name="callbackUrl" value={callbackUrl} />
+          <button
+            type="submit"
+            disabled={!csrfToken}
+            className="flex w-full items-center justify-center gap-3 rounded-xl border border-brand-sage/20 bg-white px-4 py-3 text-sm font-medium text-brand-bark shadow-sm transition-all hover:bg-gray-50 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-brand-sage/30 dark:bg-brand-bark/30 dark:text-brand-cream dark:hover:bg-brand-bark/50"
+          >
             <svg className="h-5 w-5" viewBox="0 0 24 24">
               <path
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
@@ -140,11 +114,9 @@ function LoginForm() {
                 fill="#EA4335"
               />
             </svg>
-          )}
-          Continue with Google
-        </button>
-
-        {/* Apple — hidden until credentials are configured */}
+            Continue with Google
+          </button>
+        </form>
       </div>
 
       {/* Divider */}
