@@ -195,6 +195,6 @@ export const config = {
      * - _next/image (image optimization)
      * - favicon.ico, robots.txt, manifest.json, icons
      */
-    "/((?!_next/static|_next/image|favicon.ico|robots.txt|manifest.json|sw\\.js|apple-touch-icon.png|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|api/auth|favicon.ico|robots.txt|manifest.json|sw\\.js|apple-touch-icon.png|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };
