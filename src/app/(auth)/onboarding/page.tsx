@@ -32,7 +32,7 @@ export default function OnboardingPage() {
 
   const handleSkipOnboarding = async () => {
     await fetch("/api/v1/onboarding/complete", { method: "POST" });
-    await update();
+    await update({ onboardingComplete: true });
     router.push("/dashboard");
   };
 

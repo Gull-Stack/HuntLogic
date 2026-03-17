@@ -32,7 +32,9 @@ export function CompletionScreen({
     // which re-reads onboardingComplete from DB into the token.
     // Without this, the middleware still sees the old JWT value and
     // redirects back to /onboarding.
-    await update();
+    // Must pass data — update() with no args just does a GET (reads session).
+    // Passing any object triggers a POST → jwt callback with trigger="update".
+    await update({ onboardingComplete: true });
     router.push("/dashboard");
   };
 
