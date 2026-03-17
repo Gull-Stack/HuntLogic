@@ -22,6 +22,7 @@ const PUBLIC_ROUTES = new Set([
 // Path prefixes that are always public
 const PUBLIC_PREFIXES = [
   "/api/auth",
+  "/api/chat",
   "/api/health",
   "/api/webhooks",
   "/api/v1/deadlines",
