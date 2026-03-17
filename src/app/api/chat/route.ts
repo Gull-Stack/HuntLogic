@@ -12,7 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const GATEWAY_URL = process.env.OPENCLAW_GATEWAY_URL || "http://127.0.0.1:18789";
+const GATEWAY_URL = process.env.OPENCLAW_GATEWAY_URL || "https://huntlogic.mysupertool.app";
 const GATEWAY_TOKEN = process.env.OPENCLAW_GATEWAY_TOKEN || "";
 
 const SYSTEM_PROMPT = `You are Grizz, HuntLogic's AI hunting concierge on huntlogic.vercel.app. You are talking to a hunter or outdoor enthusiast who just landed on the website.
