@@ -76,17 +76,22 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Anthropic SDK — primary path for production
-  // (OpenClaw gateway is WebSocket-only, not callable from serverless)
+  // Gateway first (OpenClaw via Cloudflare Tunnel), Anthropic SDK fallback
   try {
-    const reply = await callAnthropicDirect(messages);
+    const reply = await callGateway(messages);
     return NextResponse.json({ reply }, { headers });
-  } catch (err) {
-    console.error("[chat:public] Anthropic SDK failed:", err);
-    return NextResponse.json(
-      { reply: "I'm having a moment. Try messaging me on Telegram @TeddyLogicBot — I'm always online there." },
-      { status: 200, headers }
-    );
+  } catch (gwErr) {
+    console.warn("[chat:public] Gateway unavailable:", (gwErr as Error).message);
+    try {
+      const reply = await callAnthropicDirect(messages);
+      return NextResponse.json({ reply }, { headers });
+    } catch (sdkErr) {
+      console.error("[chat:public] All backends failed:", sdkErr);
+      return NextResponse.json(
+        { reply: "I'm having a moment. Try messaging me on Telegram @TeddyLogicBot — I'm always online there." },
+        { status: 200, headers }
+      );
+    }
   }
 }
 
