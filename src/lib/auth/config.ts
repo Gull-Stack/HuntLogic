@@ -175,6 +175,7 @@ export const authConfig: NextAuthConfig = {
      * jwt: Add userId, onboardingComplete, and onboardingStep to JWT token.
      */
     async jwt({ token, user, trigger }) {
+      console.log(`[auth:jwt] trigger=${trigger} user=${user?.email ?? 'none'} sub=${token.sub}`);
       const t = token as Record<string, unknown>;
       // Re-read from DB on sign-in, explicit update, or while onboarding is incomplete
       // (once onboardingComplete=true, we stop re-checking on every request)
@@ -206,6 +207,7 @@ export const authConfig: NextAuthConfig = {
      * session: Expose userId, onboardingComplete, onboardingStep in session.
      */
     async session({ session, token }) {
+      console.log(`[auth:session] userId=${(token as Record<string,unknown>).userId} onboarding=${(token as Record<string,unknown>).onboardingComplete}`);
       const t = token as Record<string, unknown>;
       if (t.userId) {
         session.user.id = t.userId as string;
