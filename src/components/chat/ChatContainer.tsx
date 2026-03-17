@@ -10,7 +10,7 @@ interface Message {
   content: string;
 }
 
-const aiName = process.env.NEXT_PUBLIC_AI_ASSISTANT_NAME || "Teddy";
+const aiName = process.env.NEXT_PUBLIC_AI_ASSISTANT_NAME || "Grizz";
 
 const WELCOME_MESSAGE: Message = {
   id: "welcome",
@@ -69,7 +69,7 @@ export function ChatContainer() {
 
         const data = await res.json();
 
-        // Update assistant message with Teddy's response
+        // Update assistant message with Grizz's response
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantId

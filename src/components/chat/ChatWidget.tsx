@@ -55,7 +55,7 @@ export function ChatWidget() {
         {
           role: "assistant",
           content:
-            "Having trouble connecting. Try messaging me on Telegram @TeddyLogicBot.",
+            "Having trouble connecting. Try messaging me on Telegram @TeddyLogicBot — I'm always online there.",
         },
       ]);
     } finally {
