@@ -19,6 +19,19 @@ interface DeadlineWidgetProps {
   maxItems?: number;
 }
 
+const typeLabels: Record<string, string> = {
+  application_deadline: "Application Deadline",
+  preference_point: "Preference Point",
+  bonus_point: "Bonus Point",
+  draw_result: "Draw Result",
+  season_date: "Season Date",
+  other: "Deadline",
+};
+
+function formatDeadlineType(type: string): string {
+  return typeLabels[type] ?? type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export function DeadlineWidget({ deadlines, maxItems = 5 }: DeadlineWidgetProps) {
   const sortedDeadlines = [...deadlines]
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
@@ -79,7 +92,7 @@ export function DeadlineWidget({ deadlines, maxItems = 5 }: DeadlineWidgetProps)
                     <p className="truncate text-sm font-medium text-brand-bark dark:text-brand-cream">
                       {deadline.title}
                     </p>
-                    <p className="text-xs text-brand-sage">{deadline.type}</p>
+                    <p className="text-xs text-brand-sage">{formatDeadlineType(deadline.type)}</p>
                   </div>
 
                   {/* Countdown */}

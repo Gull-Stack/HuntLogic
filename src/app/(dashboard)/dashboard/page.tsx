@@ -63,7 +63,7 @@ export default function DashboardPage() {
         .map((d) => ({
           id: `alert-${d.id}`,
           type: "urgent" as const,
-          message: `${d.state} ${d.title} deadline in ${Math.ceil((new Date(d.date).getTime() - now) / (24 * 60 * 60 * 1000))} days`,
+          message: `${d.stateCode} ${d.title} — deadline in ${Math.ceil((new Date(d.date).getTime() - now) / (24 * 60 * 60 * 1000))} days`,
           ctaLabel: "View",
           ctaHref: "/calendar",
         }));

@@ -19,7 +19,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { signIn } from "next-auth/react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -31,6 +31,15 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState<string | null>(null);
   const [emailError, setEmailError] = useState("");
+  const [hasEmailProvider, setHasEmailProvider] = useState(false);
+
+  // Check if the Resend email provider is configured
+  useEffect(() => {
+    fetch("/api/auth/providers")
+      .then((r) => r.json())
+      .then((providers) => setHasEmailProvider(!!providers.resend))
+      .catch(() => {});
+  }, []);
 
   const error = searchParams.get("error");
   const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard";
@@ -116,14 +125,15 @@ function LoginForm() {
         </button>
       </div>
 
-      {/* Divider */}
+      {/* Divider + Email Magic Link — only shown if Resend provider is configured */}
+      {hasEmailProvider && (
+      <>
       <div className="my-6 flex items-center gap-3">
         <div className="h-px flex-1 bg-brand-sage/20" />
         <span className="text-xs font-medium text-brand-sage">or</span>
         <div className="h-px flex-1 bg-brand-sage/20" />
       </div>
 
-      {/* Email Magic Link */}
       <form onSubmit={handleEmailSignIn} className="space-y-3">
         <div>
           <label htmlFor="email" className="sr-only">
@@ -173,6 +183,8 @@ function LoginForm() {
           Send Magic Link
         </button>
       </form>
+      </>
+      )}
 
       {/* Toggle sign-in / sign-up */}
       <p className="mt-6 text-center text-sm text-brand-sage">
