@@ -217,11 +217,10 @@ async function savePlaybook(
     })
     .returning();
 
-  const newPlaybookRow = newPlaybook[0];
-  if (!newPlaybookRow) {
+  if (!newPlaybook) {
     throw new Error("Failed to create playbook record");
   }
-  const playbookId = newPlaybookRow.id;
+  const playbookId = newPlaybook.id;
 
   // Save individual recommendations
   const allRecs = [

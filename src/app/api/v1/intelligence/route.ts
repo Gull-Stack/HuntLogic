@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq, and, desc, type SQL } from "drizzle-orm";
+import { eq, and, desc, type SQL, type AnyColumn } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   drawOdds,
@@ -86,11 +86,12 @@ export async function GET(request: NextRequest) {
     }
 
     // Build dynamic where conditions for each table
+    // Use a loose structural type so drawOdds, harvestStats, and seasons all satisfy it
     const buildConditions = (table: {
-      stateId: typeof drawOdds.stateId;
-      speciesId: typeof drawOdds.speciesId;
-      huntUnitId: typeof drawOdds.huntUnitId;
-      year: typeof drawOdds.year;
+      stateId: AnyColumn;
+      speciesId: AnyColumn;
+      huntUnitId: AnyColumn;
+      year: AnyColumn;
     }): SQL | undefined => {
       const conditions: SQL[] = [];
       if (stateId) conditions.push(eq(table.stateId, stateId));

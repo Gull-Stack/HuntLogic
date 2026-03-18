@@ -134,9 +134,9 @@ function simulateScenario(
 
   // Calculate results
   drawYears.sort((a, b) => a - b);
-  const medianDrawYear = drawYears[Math.floor(ITERATIONS / 2)];
-  const p25 = drawYears[Math.floor(ITERATIONS * 0.25)];
-  const p75 = drawYears[Math.floor(ITERATIONS * 0.75)];
+  const medianDrawYear = drawYears[Math.floor(ITERATIONS / 2)] ?? currentYear + yearsForward;
+  const p25 = drawYears[Math.floor(ITERATIONS * 0.25)] ?? currentYear + 1;
+  const p75 = drawYears[Math.floor(ITERATIONS * 0.75)] ?? currentYear + yearsForward;
 
   // Cumulative probability curve
   const probabilityCurve: { year: number; cumulativeProbability: number }[] = [];
@@ -238,11 +238,13 @@ async function getSimulationContext(
 
     let annualPointCreepRate = 0.5;
     if (pointData.length >= 2) {
-      const yearSpan = pointData[0].year - pointData[pointData.length - 1].year;
-      const pointSpan =
-        pointData[0].points - pointData[pointData.length - 1].points;
-      annualPointCreepRate =
-        yearSpan > 0 ? pointSpan / yearSpan : 0.5;
+      const first = pointData[0];
+      const last = pointData[pointData.length - 1];
+      if (first && last) {
+        const yearSpan = first.year - last.year;
+        const pointSpan = first.points - last.points;
+        annualPointCreepRate = yearSpan > 0 ? pointSpan / yearSpan : 0.5;
+      }
     }
 
     const latestOdds = recentOdds[0];
