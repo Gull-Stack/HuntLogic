@@ -299,7 +299,19 @@ const US_STATES = [
 // Inspire Me — curated hunt data
 // ---------------------------------------------------------------------------
 
-const REGIONAL_OTC_HUNTS: Record<string, { species: string; state: string; tagline: string; difficulty: "otc" | "easy_draw" }> = {
+interface InspireApiHunt {
+  species: string;
+  state: string;
+  tagline: string;
+  difficulty: string;
+  unitCode?: string;
+  drawRate?: number | null;
+  successRate?: number | null;
+  yearsToExpect?: string;
+  hook?: string;
+}
+
+const REGIONAL_OTC_HUNTS: Record<string, InspireApiHunt> = {
   southeast: { species: "White-tailed Deer", state: "Georgia", tagline: "Some of the best whitetail hunting in the Southeast. OTC license, 750K+ acres of public land.", difficulty: "otc" },
   south: { species: "White-tailed Deer", state: "Texas", tagline: "More whitetail than anywhere on earth. Private land leases are accessible and affordable.", difficulty: "otc" },
   midwest: { species: "Pheasant", state: "South Dakota", tagline: "The pheasant capital of the world. Incredible bird numbers and walk-in access.", difficulty: "otc" },
@@ -321,11 +333,11 @@ const STATE_REGIONS: Record<string, keyof typeof REGIONAL_OTC_HUNTS> = {
   NY: "northeast", PA: "northeast", VT: "northeast", NH: "northeast", ME: "northeast", MA: "northeast", CT: "northeast", RI: "northeast", NJ: "northeast", DE: "northeast", MD: "northeast", WV: "northeast",
 };
 
-const ASPIRATIONAL_HUNTS: Record<string, { species: string; state: string; tagline: string; yearsToExpect: string; hook: string }> = {
-  freezer: { species: "Rocky Mountain Elk", state: "Idaho", tagline: "OTC bull elk tags available statewide — no draw, no points. A 5-day camp in the Frank Church Wilderness.", yearsToExpect: "This year", hook: "Over-the-counter. No waiting. Just buy the license and go." },
-  trophy: { species: "Rocky Mountain Bighorn Sheep", state: "Nevada", tagline: "Nevada issues more bighorn sheep tags than any other state. A true once-in-a-lifetime trophy hunt.", yearsToExpect: "8-15 years", hook: "Start your points today. Nevada is the best NR sheep state in the country." },
-  lifetime: { species: "Desert Bighorn Sheep", state: "Arizona", tagline: "Arizona bighorn sheep is the pinnacle of North American big game hunting. Record-class rams in the Sonoran Desert.", yearsToExpect: "15-25 years", hook: "Apply every year. When you draw, it'll be the hunt of your life." },
-  balanced: { species: "Bull Elk", state: "Colorado", tagline: "Colorado has the largest elk population on earth. Preference points grow value every year — many units draw in 5-7 years.", yearsToExpect: "3-7 years", hook: "Best ROI in western big game. Start accumulating points now." },
+const ASPIRATIONAL_HUNTS: Record<string, InspireApiHunt> = {
+  freezer: { species: "Rocky Mountain Elk", state: "Idaho", tagline: "OTC bull elk tags available statewide — no draw, no points. A 5-day camp in the Frank Church Wilderness.", difficulty: "otc", yearsToExpect: "This year", hook: "Over-the-counter. No waiting. Just buy the license and go." },
+  trophy: { species: "Rocky Mountain Bighorn Sheep", state: "Nevada", tagline: "Nevada issues more bighorn sheep tags than any other state. A true once-in-a-lifetime trophy hunt.", difficulty: "draw", yearsToExpect: "8-15 years", hook: "Start your points today. Nevada is the best NR sheep state in the country." },
+  lifetime: { species: "Desert Bighorn Sheep", state: "Arizona", tagline: "Arizona bighorn sheep is the pinnacle of North American big game hunting. Record-class rams in the Sonoran Desert.", difficulty: "draw", yearsToExpect: "15-25 years", hook: "Apply every year. When you draw, it'll be the hunt of your life." },
+  balanced: { species: "Bull Elk", state: "Colorado", tagline: "Colorado has the largest elk population on earth. Preference points grow value every year — many units draw in 5-7 years.", difficulty: "draw", yearsToExpect: "3-7 years", hook: "Best ROI in western big game. Start accumulating points now." },
 };
 
 function StepPoints({
@@ -589,9 +601,55 @@ function InspireResults({
   motivation: Motivation;
   onExploreAll: () => void;
 }) {
-  const region = STATE_REGIONS[homeState] ?? "west";
-  const otcHunt = REGIONAL_OTC_HUNTS[region];
-  const dreamHunt = ASPIRATIONAL_HUNTS[motivation];
+  const [loading, setLoading] = useState(true);
+  const [otcHunt, setOtcHunt] = useState<InspireApiHunt | null>(null);
+  const [dreamHunt, setDreamHunt] = useState<InspireApiHunt | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchInspiration() {
+      setLoading(true);
+      try {
+        const res = await fetch("/api/v1/inspire-me", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ homeState, motivation }),
+        });
+        if (!res.ok) throw new Error("API error");
+        const data = await res.json() as { huntThisFall: InspireApiHunt; fiveYearDream: InspireApiHunt };
+        if (!cancelled) {
+          setOtcHunt(data.huntThisFall);
+          setDreamHunt(data.fiveYearDream);
+        }
+      } catch {
+        // Fall back to curated data
+        if (!cancelled) {
+          const region = STATE_REGIONS[homeState] ?? "west";
+          const fallbackOtc = REGIONAL_OTC_HUNTS[region] ?? REGIONAL_OTC_HUNTS["west"]!;
+          const fallbackDream = ASPIRATIONAL_HUNTS[motivation] ?? null;
+          setOtcHunt(fallbackOtc);
+          setDreamHunt(fallbackDream);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    fetchInspiration();
+    return () => { cancelled = true; };
+  }, [homeState, motivation]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16">
+        <Crosshair className="h-12 w-12 animate-spin text-brand-forest dark:text-brand-sage" />
+        <p className="mt-4 text-lg font-semibold text-brand-bark dark:text-brand-cream animate-pulse">
+          Finding your perfect hunt...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -638,13 +696,17 @@ function InspireResults({
             <span className="inline-block rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
               Start building points today
             </span>
-            <span className="text-xs text-brand-sage">
-              Est. {dreamHunt.yearsToExpect} to draw
-            </span>
+            {dreamHunt.yearsToExpect && (
+              <span className="text-xs text-brand-sage">
+                Est. {dreamHunt.yearsToExpect} to draw
+              </span>
+            )}
           </div>
-          <p className="mt-2 text-sm font-medium italic text-amber-800 dark:text-amber-300">
-            {dreamHunt.hook}
-          </p>
+          {dreamHunt.hook && (
+            <p className="mt-2 text-sm font-medium italic text-amber-800 dark:text-amber-300">
+              {dreamHunt.hook}
+            </p>
+          )}
         </div>
       )}
 
@@ -873,13 +935,17 @@ export default function DrawSimulatorPage() {
   const [results, setResults] = useState<SimulatorResults | null>(null);
   const [resultsLoading, setResultsLoading] = useState(false);
 
+  // All species (unfiltered) for fallback
+  const [allSpecies, setAllSpecies] = useState<SpeciesOption[]>([]);
+
   // Fetch species & states on mount
   useEffect(() => {
     fetch("/api/v1/explore/species")
       .then((r) => r.json())
-      .then((d: { species: SpeciesOption[] }) =>
-        setSpeciesList(d.species ?? [])
-      )
+      .then((d: { species: SpeciesOption[] }) => {
+        setSpeciesList(d.species ?? []);
+        setAllSpecies(d.species ?? []);
+      })
       .catch(() => {});
 
     fetch("/api/v1/explore/states")
@@ -887,6 +953,39 @@ export default function DrawSimulatorPage() {
       .then((d: { states: StateOption[] }) => setStateList(d.states ?? []))
       .catch(() => {});
   }, []);
+
+  // When states change, refetch eligible species for those states
+  useEffect(() => {
+    if (selectedStates.size === 0) {
+      // No states selected — show all species
+      setSpeciesList(allSpecies);
+      return;
+    }
+
+    fetch("/api/v1/explore/species-for-states", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ states: Array.from(selectedStates) }),
+    })
+      .then((r) => r.json())
+      .then((d: { species: SpeciesOption[] }) => {
+        if (d.species && d.species.length > 0) {
+          setSpeciesList(d.species);
+          // Remove any selected species no longer eligible
+          const eligible = new Set(d.species.map((s) => s.slug));
+          setSelectedSpecies((prev) => {
+            const next = new Set([...prev].filter((s) => eligible.has(s)));
+            return next.size === prev.size ? prev : next;
+          });
+        } else {
+          // Fallback: show all species if API returns empty
+          setSpeciesList(allSpecies);
+        }
+      })
+      .catch(() => {
+        setSpeciesList(allSpecies);
+      });
+  }, [selectedStates, allSpecies]);
 
   const toggleSpecies = useCallback((slug: string) => {
     setSelectedSpecies((prev) => {
