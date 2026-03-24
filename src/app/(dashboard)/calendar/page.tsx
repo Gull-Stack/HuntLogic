@@ -13,7 +13,13 @@ import {
   FileText,
   Award,
   Clock,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
+
+/* -------------------------------------------------------------------------- */
+/*  Types                                                                     */
+/* -------------------------------------------------------------------------- */
 
 interface CalendarDeadlineRaw {
   id: string;
@@ -23,6 +29,7 @@ interface CalendarDeadlineRaw {
   state?: string;
   stateCode: string;
   title: string;
+  description?: string;
   deadlineType?: string;
   type?: string;
   status?: "upcoming" | "passed" | "today";
@@ -34,23 +41,62 @@ interface CalendarDeadline {
   state: string;
   stateCode: string;
   title: string;
+  description?: string;
   type: "application" | "point_purchase" | "results" | "season";
   status: "upcoming" | "passed" | "today";
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Helpers                                                                   */
+/* -------------------------------------------------------------------------- */
+
 function normalizeDeadline(raw: CalendarDeadlineRaw): CalendarDeadline {
   const date = raw.deadlineDate || raw.date || "";
-  const days = date ? Math.ceil((new Date(date).getTime() - Date.now()) / 86400000) : 0;
+  const days = date
+    ? Math.ceil((new Date(date).getTime() - Date.now()) / 86400000)
+    : 0;
   return {
     id: raw.id,
     date,
     state: raw.stateName || raw.state || raw.stateCode,
     stateCode: raw.stateCode,
     title: raw.title,
+    description: raw.description,
     type: (raw.deadlineType || raw.type || "application") as CalendarDeadline["type"],
     status: raw.status || (days < 0 ? "passed" : days === 0 ? "today" : "upcoming"),
   };
 }
+
+function parseOpenCloseDates(description?: string): string | null {
+  if (!description) return null;
+  const opensMatch = description.match(/opens\s+(\d{4}-\d{2}-\d{2})/i);
+  const closesMatch = description.match(/closes\s+(\d{4}-\d{2}-\d{2})/i);
+  if (!opensMatch?.[1] && !closesMatch?.[1]) return null;
+
+  const fmt = (dateStr: string) => {
+    const d = new Date(dateStr + "T00:00:00");
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
+
+  const parts: string[] = [];
+  if (opensMatch?.[1]) parts.push(`Open ${fmt(opensMatch[1])}`);
+  if (closesMatch?.[1]) parts.push(`Closes ${fmt(closesMatch[1])}`);
+  return parts.join(" \u2013 ") || null;
+}
+
+function getCalendarCells(year: number, month: number): (number | null)[] {
+  const startDow = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < startDow; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Constants                                                                 */
+/* -------------------------------------------------------------------------- */
 
 const typeIcons: Record<string, typeof FileText> = {
   application: FileText,
@@ -66,8 +112,23 @@ const typeLabels: Record<string, string> = {
   season: "Season",
 };
 
+const dotColorMap: Record<string, string> = {
+  application: "bg-amber-400",
+  draw_result: "bg-blue-400",
+  results: "bg-blue-400",
+  season: "bg-green-400",
+  point_purchase: "bg-purple-400",
+  preference_point: "bg-purple-400",
+};
+
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
 type ViewMode = "list" | "month";
 type FilterType = "all" | "application" | "point_purchase" | "results" | "season";
+
+/* -------------------------------------------------------------------------- */
+/*  Component                                                                 */
+/* -------------------------------------------------------------------------- */
 
 export default function CalendarPage() {
   const [deadlines, setDeadlines] = useState<CalendarDeadline[]>([]);
@@ -75,6 +136,11 @@ export default function CalendarPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [filter, setFilter] = useState<FilterType>("all");
   const [stateFilter, setStateFilter] = useState<string>("all");
+
+  // Month-view state
+  const [calendarYear, setCalendarYear] = useState(() => new Date().getFullYear());
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date().getMonth());
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
   useEffect(() => {
     async function fetchDeadlines() {
@@ -94,22 +160,88 @@ export default function CalendarPage() {
     fetchDeadlines();
   }, []);
 
+  /* ---- Derived data ---- */
+
   const filteredDeadlines = deadlines
     .filter((d) => filter === "all" || d.type === filter)
     .filter((d) => stateFilter === "all" || d.stateCode === stateFilter)
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  // Group by month
+  // Group by month (list view)
   const groupedByMonth = new Map<string, CalendarDeadline[]>();
   for (const d of filteredDeadlines) {
-    const monthKey = new Date(d.date).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    const monthKey = new Date(d.date).toLocaleDateString("en-US", {
+      month: "long",
+      year: "numeric",
+    });
     const group = groupedByMonth.get(monthKey) || [];
     group.push(d);
     groupedByMonth.set(monthKey, group);
   }
 
-  // Get unique states for filter
+  // Index by ISO date (month view)
+  const deadlinesByDate = new Map<string, CalendarDeadline[]>();
+  for (const d of filteredDeadlines) {
+    const group = deadlinesByDate.get(d.date) || [];
+    group.push(d);
+    deadlinesByDate.set(d.date, group);
+  }
+
   const uniqueStates = [...new Set(deadlines.map((d) => d.stateCode))].sort();
+
+  /* ---- Month navigation ---- */
+
+  const goToPrevMonth = () => {
+    setSelectedDay(null);
+    if (calendarMonth === 0) {
+      setCalendarMonth(11);
+      setCalendarYear((y) => y - 1);
+    } else {
+      setCalendarMonth((m) => m - 1);
+    }
+  };
+
+  const goToNextMonth = () => {
+    setSelectedDay(null);
+    if (calendarMonth === 11) {
+      setCalendarMonth(0);
+      setCalendarYear((y) => y + 1);
+    } else {
+      setCalendarMonth((m) => m + 1);
+    }
+  };
+
+  const goToToday = () => {
+    setSelectedDay(null);
+    const t = new Date();
+    setCalendarYear(t.getFullYear());
+    setCalendarMonth(t.getMonth());
+  };
+
+  /* ---- Calendar grid helpers ---- */
+
+  const cells = getCalendarCells(calendarYear, calendarMonth);
+  const todayDate = new Date();
+  const isCurrentMonth =
+    todayDate.getFullYear() === calendarYear &&
+    todayDate.getMonth() === calendarMonth;
+  const todayDay = todayDate.getDate();
+
+  const monthLabel = new Date(calendarYear, calendarMonth).toLocaleDateString(
+    "en-US",
+    { month: "long", year: "numeric" },
+  );
+
+  const getDeadlinesForDay = (day: number): CalendarDeadline[] => {
+    const dateStr = `${calendarYear}-${String(calendarMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    return deadlinesByDate.get(dateStr) ?? [];
+  };
+
+  const selectedDayDeadlines = selectedDay
+    ? getDeadlinesForDay(selectedDay)
+    : [];
+
+  /* ---- ICS export ---- */
 
   const handleExportIcs = (deadline: CalendarDeadline) => {
     const start = new Date(deadline.date);
@@ -141,6 +273,8 @@ export default function CalendarPage() {
     URL.revokeObjectURL(url);
   };
 
+  /* ---- Filter config ---- */
+
   const filters: { value: FilterType; label: string }[] = [
     { value: "all", label: "All" },
     { value: "application", label: "Applications" },
@@ -148,6 +282,8 @@ export default function CalendarPage() {
     { value: "results", label: "Results" },
     { value: "season", label: "Seasons" },
   ];
+
+  /* ---- Loading skeleton ---- */
 
   if (isLoading) {
     return (
@@ -157,11 +293,16 @@ export default function CalendarPage() {
           <div className="mt-1 h-5 w-56 motion-safe:animate-pulse rounded-lg bg-brand-sage/10" />
         </div>
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-16 w-full motion-safe:animate-pulse rounded-xl bg-brand-sage/10" />
+          <div
+            key={i}
+            className="h-16 w-full motion-safe:animate-pulse rounded-xl bg-brand-sage/10"
+          />
         ))}
       </div>
     );
   }
+
+  /* ---- Render ---- */
 
   return (
     <div className="space-y-6">
@@ -184,7 +325,7 @@ export default function CalendarPage() {
               "flex h-9 w-9 items-center justify-center rounded-l-lg transition-colors",
               viewMode === "list"
                 ? "bg-brand-forest text-white dark:bg-brand-sage"
-                : "text-brand-sage hover:bg-brand-sage/10"
+                : "text-brand-sage hover:bg-brand-sage/10",
             )}
             aria-label="List view"
           >
@@ -196,7 +337,7 @@ export default function CalendarPage() {
               "flex h-9 w-9 items-center justify-center rounded-r-lg transition-colors",
               viewMode === "month"
                 ? "bg-brand-forest text-white dark:bg-brand-sage"
-                : "text-brand-sage hover:bg-brand-sage/10"
+                : "text-brand-sage hover:bg-brand-sage/10",
             )}
             aria-label="Month view"
           >
@@ -216,7 +357,7 @@ export default function CalendarPage() {
                 "shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors min-h-[36px]",
                 filter === f.value
                   ? "bg-brand-forest text-brand-cream dark:bg-brand-sage"
-                  : "bg-brand-sage/10 text-brand-sage hover:bg-brand-sage/20 dark:bg-brand-sage/20"
+                  : "bg-brand-sage/10 text-brand-sage hover:bg-brand-sage/20 dark:bg-brand-sage/20",
               )}
             >
               {f.label}
@@ -232,7 +373,7 @@ export default function CalendarPage() {
               "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors min-h-[32px]",
               stateFilter === "all"
                 ? "bg-brand-earth text-white"
-                : "bg-brand-earth/10 text-brand-earth hover:bg-brand-earth/20"
+                : "bg-brand-earth/10 text-brand-earth hover:bg-brand-earth/20",
             )}
           >
             All States
@@ -245,7 +386,7 @@ export default function CalendarPage() {
                 "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors min-h-[32px]",
                 stateFilter === code
                   ? "bg-brand-earth text-white"
-                  : "bg-brand-earth/10 text-brand-earth hover:bg-brand-earth/20"
+                  : "bg-brand-earth/10 text-brand-earth hover:bg-brand-earth/20",
               )}
             >
               {code}
@@ -254,84 +395,280 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* List View */}
-      {filteredDeadlines.length === 0 ? (
-        <EmptyState
-          icon={<CalendarDays className="h-8 w-8" />}
-          title="No deadlines found"
-          description="Try adjusting your filters or check back later."
-          actionLabel="Clear Filters"
-          onAction={() => {
-            setFilter("all");
-            setStateFilter("all");
-          }}
-        />
-      ) : (
-        <div className="space-y-6">
-          {Array.from(groupedByMonth.entries()).map(([month, items]) => (
-            <div key={month}>
-              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-brand-sage">
-                {month}
-              </h3>
-              <div className="space-y-2">
-                {items.map((deadline) => {
-                  const days = daysUntil(deadline.date);
-                  const Icon = typeIcons[deadline.type] || CalendarDays;
-                  const urgencyColor =
-                    days < 0
-                      ? "text-brand-sage"
-                      : days < 7
-                        ? "text-red-600 dark:text-red-400"
-                        : days < 14
-                          ? "text-amber-600 dark:text-amber-400"
-                          : "text-green-600 dark:text-green-400";
+      {/* ================================================================== */}
+      {/*  LIST VIEW                                                         */}
+      {/* ================================================================== */}
+      {viewMode === "list" &&
+        (filteredDeadlines.length === 0 ? (
+          <EmptyState
+            icon={<CalendarDays className="h-8 w-8" />}
+            title="No deadlines found"
+            description="Try adjusting your filters or check back later."
+            actionLabel="Clear Filters"
+            onAction={() => {
+              setFilter("all");
+              setStateFilter("all");
+            }}
+          />
+        ) : (
+          <div className="space-y-6">
+            {Array.from(groupedByMonth.entries()).map(([month, items]) => (
+              <div key={month}>
+                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-brand-sage">
+                  {month}
+                </h3>
+                <div className="space-y-2">
+                  {items.map((deadline) => {
+                    const days = daysUntil(deadline.date);
+                    const Icon = typeIcons[deadline.type] ?? CalendarDays;
+                    const urgencyColor =
+                      days < 0
+                        ? "text-brand-sage"
+                        : days < 7
+                          ? "text-red-600 dark:text-red-400"
+                          : days < 14
+                            ? "text-amber-600 dark:text-amber-400"
+                            : "text-green-600 dark:text-green-400";
+                    const openClose = parseOpenCloseDates(deadline.description);
 
-                  return (
-                    <Card key={deadline.id} className="flex items-center gap-3">
-                      {/* Date column */}
-                      <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-lg bg-brand-sage/5 dark:bg-brand-sage/10">
-                        <span className="text-[10px] font-medium uppercase text-brand-sage">
-                          {new Date(deadline.date).toLocaleDateString("en-US", { month: "short" })}
-                        </span>
-                        <span className="text-lg font-bold text-brand-bark dark:text-brand-cream leading-none">
-                          {new Date(deadline.date).getDate()}
-                        </span>
-                      </div>
-
-                      {/* Content */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="info" size="sm">{deadline.stateCode}</Badge>
-                          <Icon className="h-3.5 w-3.5 text-brand-sage" />
-                          <span className="text-xs text-brand-sage">
-                            {typeLabels[deadline.type]}
+                    return (
+                      <Card key={deadline.id} className="flex items-center gap-3">
+                        {/* Date column */}
+                        <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-lg bg-brand-sage/5 dark:bg-brand-sage/10">
+                          <span className="text-[10px] font-medium uppercase text-brand-sage">
+                            {new Date(deadline.date).toLocaleDateString("en-US", {
+                              month: "short",
+                            })}
+                          </span>
+                          <span className="text-lg font-bold leading-none text-brand-bark dark:text-brand-cream">
+                            {new Date(deadline.date).getDate()}
                           </span>
                         </div>
-                        <p className="mt-0.5 truncate text-sm font-medium text-brand-bark dark:text-brand-cream">
-                          {deadline.title}
-                        </p>
-                      </div>
 
-                      {/* Countdown + ICS */}
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className={cn("text-xs font-semibold", urgencyColor)}>
-                          {formatCountdown(deadline.date)}
-                        </span>
-                        <button
-                          onClick={() => handleExportIcs(deadline)}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg text-brand-sage hover:bg-brand-sage/10 transition-colors"
-                          aria-label="Add to calendar"
-                          title="Download .ics"
-                        >
-                          <Download className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </Card>
-                  );
-                })}
+                        {/* Content */}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="info" size="sm">
+                              {deadline.stateCode}
+                            </Badge>
+                            <Icon className="h-3.5 w-3.5 text-brand-sage" />
+                            <span className="text-xs text-brand-sage">
+                              {typeLabels[deadline.type] ?? deadline.type}
+                            </span>
+                          </div>
+                          <p className="mt-0.5 truncate text-sm font-medium text-brand-bark dark:text-brand-cream">
+                            {deadline.title}
+                          </p>
+                          {openClose && (
+                            <p className="truncate text-xs text-brand-sage/70">
+                              {openClose}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Countdown + ICS */}
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span className={cn("text-xs font-semibold", urgencyColor)}>
+                            {formatCountdown(deadline.date)}
+                          </span>
+                          <button
+                            onClick={() => handleExportIcs(deadline)}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-brand-sage transition-colors hover:bg-brand-sage/10"
+                            aria-label="Add to calendar"
+                            title="Download .ics"
+                          >
+                            <Download className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
               </div>
+            ))}
+          </div>
+        ))}
+
+      {/* ================================================================== */}
+      {/*  MONTH VIEW                                                        */}
+      {/* ================================================================== */}
+      {viewMode === "month" && (
+        <div className="space-y-4">
+          {/* Month navigation */}
+          <div className="flex items-center justify-between">
+            <button
+              onClick={goToPrevMonth}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-brand-sage transition-colors hover:bg-brand-sage/10"
+              aria-label="Previous month"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <div className="flex items-center gap-3">
+              <h3 className="text-lg font-semibold text-brand-bark dark:text-brand-cream">
+                {monthLabel}
+              </h3>
+              {!isCurrentMonth && (
+                <button
+                  onClick={goToToday}
+                  className="rounded-full px-3 py-1 text-xs font-medium bg-brand-sage/10 text-brand-sage transition-colors hover:bg-brand-sage/20"
+                >
+                  Today
+                </button>
+              )}
             </div>
-          ))}
+            <button
+              onClick={goToNextMonth}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-brand-sage transition-colors hover:bg-brand-sage/10"
+              aria-label="Next month"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          </div>
+
+          {/* Calendar grid */}
+          <div className="overflow-hidden rounded-xl border border-brand-sage/20 dark:border-brand-sage/30">
+            {/* Day-of-week header */}
+            <div className="grid grid-cols-7 bg-brand-sage/5 dark:bg-brand-sage/10">
+              {DAY_NAMES.map((day) => (
+                <div
+                  key={day}
+                  className="py-2 text-center text-xs font-semibold uppercase tracking-wider text-brand-sage"
+                >
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            {/* Day cells */}
+            <div className="grid grid-cols-7">
+              {cells.map((day, i) => {
+                if (day === null) {
+                  return (
+                    <div
+                      key={`empty-${i}`}
+                      className="min-h-[3.5rem] border-t border-brand-sage/10 bg-brand-sage/[0.02] dark:bg-brand-sage/[0.03]"
+                    />
+                  );
+                }
+
+                const dayDeadlines = getDeadlinesForDay(day);
+                const isToday = isCurrentMonth && day === todayDay;
+                const isSelected = selectedDay === day;
+                const hasDeadlines = dayDeadlines.length > 0;
+
+                return (
+                  <button
+                    key={`day-${day}`}
+                    type="button"
+                    onClick={() =>
+                      setSelectedDay(
+                        hasDeadlines ? (isSelected ? null : day) : null,
+                      )
+                    }
+                    className={cn(
+                      "min-h-[3.5rem] border-t border-brand-sage/10 p-1.5 text-left transition-colors",
+                      hasDeadlines
+                        ? "cursor-pointer hover:bg-brand-sage/5"
+                        : "cursor-default",
+                      isSelected && "bg-brand-forest/5 dark:bg-brand-sage/10",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium",
+                        isToday
+                          ? "bg-brand-forest text-white"
+                          : "text-brand-bark dark:text-brand-cream",
+                      )}
+                    >
+                      {day}
+                    </span>
+                    {hasDeadlines && (
+                      <div className="mt-0.5 flex flex-wrap gap-0.5">
+                        {dayDeadlines.slice(0, 4).map((dl) => (
+                          <span
+                            key={dl.id}
+                            className={cn(
+                              "h-1.5 w-1.5 rounded-full",
+                              dotColorMap[dl.type] ?? "bg-gray-400",
+                            )}
+                          />
+                        ))}
+                        {dayDeadlines.length > 4 && (
+                          <span className="text-[9px] leading-none text-brand-sage">
+                            +{dayDeadlines.length - 4}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Dot legend */}
+          <div className="flex flex-wrap gap-3 text-xs text-brand-sage">
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-amber-400" /> Application
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-blue-400" /> Results
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-green-400" /> Season
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-purple-400" /> Points
+            </span>
+          </div>
+
+          {/* Selected-day detail panel */}
+          {selectedDay !== null && selectedDayDeadlines.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-semibold text-brand-bark dark:text-brand-cream">
+                {new Date(calendarYear, calendarMonth, selectedDay).toLocaleDateString(
+                  "en-US",
+                  { weekday: "long", month: "long", day: "numeric" },
+                )}
+              </h4>
+              {selectedDayDeadlines.map((deadline) => {
+                const Icon = typeIcons[deadline.type] ?? CalendarDays;
+                return (
+                  <Card key={deadline.id} className="flex items-center gap-3">
+                    <span
+                      className={cn(
+                        "h-3 w-3 shrink-0 rounded-full",
+                        dotColorMap[deadline.type] ?? "bg-gray-400",
+                      )}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="info" size="sm">
+                          {deadline.stateCode}
+                        </Badge>
+                        <Icon className="h-3.5 w-3.5 text-brand-sage" />
+                        <span className="text-xs text-brand-sage">
+                          {typeLabels[deadline.type] ?? deadline.type}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 truncate text-sm font-medium text-brand-bark dark:text-brand-cream">
+                        {deadline.title}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleExportIcs(deadline)}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-brand-sage transition-colors hover:bg-brand-sage/10"
+                      aria-label="Add to calendar"
+                      title="Download .ics"
+                    >
+                      <Download className="h-4 w-4" />
+                    </button>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>
