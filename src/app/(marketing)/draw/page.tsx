@@ -421,22 +421,24 @@ function StepPoints({
           {speciesSlugs.map((slug) => {
             const name = speciesMap.get(slug) ?? slug;
             return (
-              <div key={slug} className="flex items-center gap-3">
-                <label className="w-40 shrink-0 text-sm text-brand-sage">
+              <div key={slug} className="flex items-center justify-between gap-3">
+                <label className="min-w-0 flex-1 truncate text-sm text-brand-sage">
                   {name}
                 </label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   min={0}
                   max={30}
-                  value={points[slug] ?? 0}
-                  onChange={(e) =>
-                    setPoints({
-                      ...points,
-                      [slug]: parseInt(e.target.value, 10) || 0,
-                    })
-                  }
-                  className="w-20 rounded-lg border border-brand-sage/20 bg-white px-3 py-2 text-sm text-brand-bark dark:bg-brand-bark dark:text-brand-cream dark:border-brand-sage/30 focus:border-brand-forest focus:outline-none focus:ring-1 focus:ring-brand-forest"
+                  value={points[slug] !== undefined ? String(points[slug]) : ""}
+                  placeholder="0"
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/\D/g, "");
+                    const num = raw === "" ? 0 : Math.min(30, parseInt(raw, 10));
+                    setPoints({ ...points, [slug]: num });
+                  }}
+                  className="w-16 rounded-lg border border-brand-sage/20 bg-white px-3 py-2 text-sm text-brand-bark dark:bg-brand-bark dark:text-brand-cream dark:border-brand-sage/30 focus:border-brand-forest focus:outline-none focus:ring-1 focus:ring-brand-forest"
                 />
               </div>
             );
@@ -1108,7 +1110,7 @@ export default function DrawSimulatorPage() {
   };
 
   return (
-    <div className="min-h-screen bg-brand-cream dark:bg-brand-forest">
+    <div className="min-h-screen overflow-x-hidden bg-brand-cream dark:bg-brand-forest">
       {/* Navbar */}
       <nav className="sticky top-0 z-50 border-b border-brand-sage/10 bg-brand-cream/90 backdrop-blur-lg dark:bg-brand-forest/90 dark:border-brand-sage/20">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 md:px-6">
@@ -1136,7 +1138,7 @@ export default function DrawSimulatorPage() {
       </nav>
 
       {/* Wizard */}
-      <div className="mx-auto max-w-2xl px-4 py-8 md:px-6 md:py-12">
+      <div className="mx-auto max-w-2xl overflow-x-hidden px-4 py-8 md:px-6 md:py-12">
         {/* Progress */}
         {!inspireMode && <ProgressBar step={step} />}
         {inspireMode && inspireStep < 3 && (
