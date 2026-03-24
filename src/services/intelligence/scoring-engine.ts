@@ -71,11 +71,26 @@ export async function scoreDrawOdds(
 
   // Check draw rate directly from candidate data
   if (candidate.latestDrawRate !== null) {
-    // Get user's points for this state/species
+    // Get user's points for this state/species.
+    // Primary source: point_holdings table (verified, structured).
+    // Fallback: hunter_preferences experience category (where onboarding stores them).
     const holding = profile.pointHoldings.find(
       (p) => p.stateId === candidate.stateId && p.speciesId === candidate.speciesId
     );
-    const userPoints = holding?.points ?? 0;
+    let userPoints = holding?.points ?? 0;
+
+    if (userPoints === 0) {
+      // Try experience prefs: key = "points_{STATE}_{species_slug}"
+      const expPref = profile.preferences.find(
+        (p) =>
+          p.category === "experience" &&
+          p.key === `points_${candidate.stateCode}_${candidate.speciesSlug}` &&
+          typeof (p.value as Record<string, unknown>)?.points === "number"
+      );
+      if (expPref) {
+        userPoints = (expPref.value as Record<string, unknown>).points as number;
+      }
+    }
 
     // If user has points above the min required, boost score
     const minPoints = candidate.latestMinPoints ?? 0;
@@ -447,7 +462,16 @@ export function scoreTimelineFit(
       const holding = profile.pointHoldings.find(
         (p) => p.stateId === candidate.stateId && p.speciesId === candidate.speciesId
       );
-      const points = holding?.points ?? 0;
+      let points = holding?.points ?? 0;
+      if (points === 0) {
+        const expPref = profile.preferences.find(
+          (p) =>
+            p.category === "experience" &&
+            p.key === `points_${candidate.stateCode}_${candidate.speciesSlug}` &&
+            typeof (p.value as Record<string, unknown>)?.points === "number"
+        );
+        if (expPref) points = (expPref.value as Record<string, unknown>).points as number;
+      }
       const minNeeded = candidate.latestMinPoints;
 
       if (points >= minNeeded) return lt.drawableScore; // Already drawable
@@ -531,7 +555,16 @@ function classifyTimeline(
   const holding = profile.pointHoldings.find(
     (p) => p.stateId === candidate.stateId && p.speciesId === candidate.speciesId
   );
-  const userPoints = holding?.points ?? 0;
+  let userPoints = holding?.points ?? 0;
+  if (userPoints === 0) {
+    const expPref = profile.preferences.find(
+      (p) =>
+        p.category === "experience" &&
+        p.key === `points_${candidate.stateCode}_${candidate.speciesSlug}` &&
+        typeof (p.value as Record<string, unknown>)?.points === "number"
+    );
+    if (expPref) userPoints = (expPref.value as Record<string, unknown>).points as number;
+  }
   const deficit = (candidate.latestMinPoints ?? 0) - userPoints;
 
   if (deficit <= 0) return "this_year";

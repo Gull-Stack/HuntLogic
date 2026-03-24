@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -57,12 +58,13 @@ const trendIcons: Record<string, typeof TrendingUp> = {
   declining: TrendingDown,
 };
 
-export default function ForecastsPage() {
+function ForecastsPageInner() {
+  const searchParams = useSearchParams();
   const [availableStates, setAvailableStates] = useState<{ code: string; name: string }[]>([]);
   const [availableSpecies, setAvailableSpecies] = useState<{ slug: string; name: string }[]>([]);
   const [selection, setSelection] = useState<ForecastSelection>({
-    state: "",
-    species: "",
+    state: searchParams.get("state") ?? "",
+    species: searchParams.get("species") ?? "",
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
@@ -342,5 +344,13 @@ export default function ForecastsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ForecastsPage() {
+  return (
+    <Suspense>
+      <ForecastsPageInner />
+    </Suspense>
   );
 }

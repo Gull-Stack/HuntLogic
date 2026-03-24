@@ -50,10 +50,11 @@ async function main() {
   const raw = XLSX.utils.sheet_to_json(sheet, { defval: null }) as Record<string, unknown>[];
   console.log(`${raw.length} rows found`);
 
-  // Helper: find column key case-insensitively
+  // Helper: find column key case-insensitively, normalizing \r\n whitespace in headers
   const keys = raw[0] ? Object.keys(raw[0]) : [];
+  const normalizeKey = (k: string) => k.replace(/[\r\n]+/g, " ").toLowerCase();
   const findKey = (...candidates: string[]) =>
-    keys.find((k) => candidates.some((c) => k.toLowerCase().includes(c.toLowerCase()))) ?? "";
+    keys.find((k) => candidates.some((c) => normalizeKey(k).includes(c.toLowerCase()))) ?? "";
 
   const COL_SEASON = findKey("season", "year");
   const COL_UNIT = findKey("unit group", "unit_group", "unitgroup");
