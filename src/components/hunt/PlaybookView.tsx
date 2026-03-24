@@ -2,7 +2,8 @@
 
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { useState } from "react";
-import { RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
+import Link from "next/link";
+import { RefreshCw, ChevronDown, ChevronUp, ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { RecommendationCard } from "./RecommendationCard";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -125,7 +126,17 @@ export function PlaybookView({ playbook, onRefresh, isRefreshing }: PlaybookView
             </div>
           ) : (
             tabRecommendations[activeTab].map((rec, idx) => (
-              <RecommendationCard key={rec.id ?? idx} recommendation={rec} />
+              <div key={rec.id ?? idx} className="space-y-1">
+                <RecommendationCard recommendation={rec} />
+                {rec.hunt.stateCode && rec.hunt.speciesSlug && (
+                  <Link
+                    href={`/recommendations/units?state=${encodeURIComponent(rec.hunt.stateCode)}&species=${encodeURIComponent(rec.hunt.speciesSlug)}&motivation=${encodeURIComponent(rec.orientation === "opportunity" ? "meat" : rec.orientation === "experience" ? "balanced" : rec.orientation)}`}
+                    className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium text-brand-sage hover:text-brand-forest transition-colors"
+                  >
+                    See Units <ArrowRight className="h-3 w-3" />
+                  </Link>
+                )}
+              </div>
             ))
           )}
         </div>

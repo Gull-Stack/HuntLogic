@@ -29,6 +29,7 @@ const mainNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
   { href: "/playbook", label: "Playbook", icon: BookOpen },
   { href: "/recommendations", label: "Recommendations", icon: Star },
+  { href: "/recommendations/units", label: "Unit Ranker", icon: Target },
   { href: "/explore", label: "Explore", icon: Compass },
   { href: "/forecasts", label: "Forecasts", icon: BarChart3 },
   { href: "/simulation", label: "Simulate", icon: Dice5 },
