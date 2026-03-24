@@ -18,7 +18,14 @@ import {
   Compass,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getBestStatesForSpecies, getSpeciesStateContext } from "@/lib/data/state-species-intelligence";
+import {
+  getBestStatesForSpecies,
+  getSpeciesStateContext,
+  REGIONAL_OTC_HUNTS,
+  ASPIRATIONAL_HUNTS,
+  STATE_TO_REGION,
+  type CuratedHuntSuggestion,
+} from "@/lib/data/state-species-intelligence";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -296,49 +303,10 @@ const US_STATES = [
 ] as const;
 
 // ---------------------------------------------------------------------------
-// Inspire Me — curated hunt data
+// Inspire Me — curated hunt data (single source of truth, imported above)
 // ---------------------------------------------------------------------------
 
-interface InspireApiHunt {
-  species: string;
-  state: string;
-  tagline: string;
-  difficulty: string;
-  unitCode?: string;
-  drawRate?: number | null;
-  successRate?: number | null;
-  yearsToExpect?: string;
-  hook?: string;
-}
-
-const REGIONAL_OTC_HUNTS: Record<string, InspireApiHunt> = {
-  southeast: { species: "White-tailed Deer", state: "Georgia", tagline: "Some of the best whitetail hunting in the Southeast. OTC license, 750K+ acres of public land.", difficulty: "otc" },
-  south: { species: "White-tailed Deer", state: "Texas", tagline: "More whitetail than anywhere on earth. Private land leases are accessible and affordable.", difficulty: "otc" },
-  midwest: { species: "Pheasant", state: "South Dakota", tagline: "The pheasant capital of the world. Incredible bird numbers and walk-in access.", difficulty: "otc" },
-  west: { species: "Elk", state: "Idaho", tagline: "OTC bull elk tags in the Frank Church Wilderness. No draw, no points — just buy the license.", difficulty: "otc" },
-  northwest: { species: "Black Bear", state: "Montana", tagline: "OTC spring bear tags in western Montana. High density, big public land.", difficulty: "otc" },
-  southwest: { species: "Mule Deer", state: "Nevada", tagline: "Nevada issues more big game tags than most states. Some mule deer units draw with 0 points.", difficulty: "easy_draw" },
-  mountain: { species: "Pronghorn", state: "Wyoming", tagline: "Wyoming has more pronghorn than anywhere on earth. Many units draw in 1-2 years NR.", difficulty: "easy_draw" },
-  northeast: { species: "White-tailed Deer", state: "Pennsylvania", tagline: "Pennsylvania has one of the largest whitetail herds in the country. OTC license, huge public land.", difficulty: "otc" },
-};
-
-const STATE_REGIONS: Record<string, keyof typeof REGIONAL_OTC_HUNTS> = {
-  GA: "southeast", FL: "southeast", SC: "southeast", NC: "southeast", AL: "southeast", MS: "southeast", TN: "southeast", VA: "southeast", AR: "southeast",
-  TX: "south", OK: "south", LA: "south", KY: "south",
-  SD: "midwest", ND: "midwest", NE: "midwest", KS: "midwest", IA: "midwest", MO: "midwest", MN: "midwest", WI: "midwest", IL: "midwest", IN: "midwest", OH: "midwest", MI: "midwest",
-  ID: "west", OR: "west", WA: "northwest", MT: "northwest", AK: "northwest",
-  NV: "southwest", AZ: "southwest", NM: "southwest", UT: "southwest",
-  WY: "mountain", CO: "mountain",
-  CA: "west",
-  NY: "northeast", PA: "northeast", VT: "northeast", NH: "northeast", ME: "northeast", MA: "northeast", CT: "northeast", RI: "northeast", NJ: "northeast", DE: "northeast", MD: "northeast", WV: "northeast",
-};
-
-const ASPIRATIONAL_HUNTS: Record<string, InspireApiHunt> = {
-  freezer: { species: "Rocky Mountain Elk", state: "Idaho", tagline: "OTC bull elk tags available statewide — no draw, no points. A 5-day camp in the Frank Church Wilderness.", difficulty: "otc", yearsToExpect: "This year", hook: "Over-the-counter. No waiting. Just buy the license and go." },
-  trophy: { species: "Rocky Mountain Bighorn Sheep", state: "Nevada", tagline: "Nevada issues more bighorn sheep tags than any other state. A true once-in-a-lifetime trophy hunt.", difficulty: "draw", yearsToExpect: "8-15 years", hook: "Start your points today. Nevada is the best NR sheep state in the country." },
-  lifetime: { species: "Desert Bighorn Sheep", state: "Arizona", tagline: "Arizona bighorn sheep is the pinnacle of North American big game hunting. Record-class rams in the Sonoran Desert.", difficulty: "draw", yearsToExpect: "15-25 years", hook: "Apply every year. When you draw, it'll be the hunt of your life." },
-  balanced: { species: "Bull Elk", state: "Colorado", tagline: "Colorado has the largest elk population on earth. Preference points grow value every year — many units draw in 5-7 years.", difficulty: "draw", yearsToExpect: "3-7 years", hook: "Best ROI in western big game. Start accumulating points now." },
-};
+type InspireApiHunt = CuratedHuntSuggestion;
 
 function StepPoints({
   hasPoints,
@@ -627,7 +595,7 @@ function InspireResults({
       } catch {
         // Fall back to curated data
         if (!cancelled) {
-          const region = STATE_REGIONS[homeState] ?? "west";
+          const region = STATE_TO_REGION[homeState] ?? "west";
           const fallbackOtc = REGIONAL_OTC_HUNTS[region] ?? REGIONAL_OTC_HUNTS["west"]!;
           const fallbackDream = ASPIRATIONAL_HUNTS[motivation] ?? null;
           setOtcHunt(fallbackOtc);

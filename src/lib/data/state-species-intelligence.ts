@@ -12,7 +12,13 @@
 //   tier 3 = solid option worth applying
 //
 // "reason" is shown to the user as the AI explanation.
+//
+// VERSION: bump INTELLIGENCE_VERSION when any data changes. Used for cache
+// invalidation and A/B testing. INTELLIGENCE_LAST_UPDATED is informational.
 // =============================================================================
+
+export const INTELLIGENCE_VERSION = "2026-03-24-v1";
+export const INTELLIGENCE_LAST_UPDATED = "2026-03-24";
 
 export interface StateSpeciesRanking {
   stateCode: string;
@@ -29,7 +35,18 @@ export interface SpeciesIntelligence {
   summary: string;
 }
 
-export const STATE_SPECIES_INTELLIGENCE: Record<string, SpeciesIntelligence> = {
+export type SpeciesSlug =
+  | "caribou" | "moose" | "elk" | "mule_deer" | "pronghorn"
+  | "bighorn_sheep" | "mountain_goat" | "black_bear" | "bison"
+  | "turkey" | "whitetail" | "pheasant" | "javelina" | "mountain_lion";
+
+export const KNOWN_SPECIES_SLUGS: readonly SpeciesSlug[] = [
+  "caribou", "moose", "elk", "mule_deer", "pronghorn",
+  "bighorn_sheep", "mountain_goat", "black_bear", "bison",
+  "turkey", "whitetail", "pheasant", "javelina", "mountain_lion",
+] as const;
+
+export const STATE_SPECIES_INTELLIGENCE: Record<SpeciesSlug, SpeciesIntelligence> = {
   // ---------------------------------------------------------------------------
   // CARIBOU — Alaska only meaningful option for US hunters
   // ---------------------------------------------------------------------------
@@ -659,6 +676,14 @@ export const STATE_SPECIES_INTELLIGENCE: Record<string, SpeciesIntelligence> = {
 // ---------------------------------------------------------------------------
 
 /**
+ * Type-safe lookup for STATE_SPECIES_INTELLIGENCE by runtime string slug.
+ * Returns undefined for unknown slugs without unsafe casting.
+ */
+export function getIntelligence(slug: string): SpeciesIntelligence | undefined {
+  return STATE_SPECIES_INTELLIGENCE[slug as SpeciesSlug];
+}
+
+/**
  * Returns a deduplicated, ranked list of state codes that are top destinations
  * for the given species selection. States that are tier-1 for ANY selected
  * species rank highest. Exclusive species (caribou, javelina) constrain the
@@ -671,7 +696,7 @@ export function getBestStatesForSpecies(speciesSlugs: string[]): {
 }[] {
   // Check for exclusive species first
   const exclusiveSpecies = speciesSlugs.filter((slug) => {
-    const intel = STATE_SPECIES_INTELLIGENCE[slug];
+    const intel = getIntelligence(slug);
     return intel?.topStates.some((s) => s.exclusive);
   });
 
@@ -680,7 +705,7 @@ export function getBestStatesForSpecies(speciesSlugs: string[]): {
   const stateScores = new Map<string, { tier: 1 | 2 | 3; reasons: string[]; speciesCovered: Set<string> }>();
 
   for (const slug of speciesSlugs) {
-    const intel = STATE_SPECIES_INTELLIGENCE[slug];
+    const intel = getIntelligence(slug);
     if (!intel) continue;
 
     for (const ranking of intel.topStates) {
@@ -733,18 +758,78 @@ export function getSpeciesStateContext(speciesSlugs: string[]): string {
   if (speciesSlugs.length === 0) return "";
 
   const exclusives = speciesSlugs.filter((slug) =>
-    STATE_SPECIES_INTELLIGENCE[slug]?.topStates.some((s) => s.exclusive)
+    getIntelligence(slug)?.topStates.some((s) => s.exclusive)
   );
 
   if (exclusives.length > 0) {
-    const names = exclusives.map((s) => STATE_SPECIES_INTELLIGENCE[s]?.summary ?? s);
+    const names = exclusives.map((s) => getIntelligence(s)?.summary ?? s);
     return names[0] ?? "";
   }
 
   if (speciesSlugs.length === 1) {
     const slug = speciesSlugs[0]!;
-    return STATE_SPECIES_INTELLIGENCE[slug]?.summary ?? "";
+    return getIntelligence(slug)?.summary ?? "";
   }
 
   return "Showing states that offer strong opportunities for your selected species.";
 }
+
+// =============================================================================
+// Curated Hunt Suggestions — single source of truth
+//
+// These are imported by /api/v1/inspire-me as DB fallbacks AND by the Draw
+// Simulator client for the Inspire Me flow. Previously duplicated in both
+// places — now lives here only.
+// =============================================================================
+
+export type InspireMotivation = "freezer" | "trophy" | "lifetime" | "balanced";
+
+export interface CuratedHuntSuggestion {
+  species: string;
+  state: string;
+  tagline: string;
+  difficulty: string;
+  unitCode?: string;
+  drawRate?: number | null;
+  successRate?: number | null;
+  yearsToExpect?: string;
+  hook?: string;
+}
+
+export type RegionKey =
+  | "southeast" | "south" | "midwest" | "west"
+  | "northwest" | "southwest" | "mountain" | "northeast";
+
+export const REGIONAL_OTC_HUNTS: Record<RegionKey, CuratedHuntSuggestion> = {
+  southeast: { species: "White-tailed Deer", state: "Georgia", tagline: "Some of the best whitetail hunting in the Southeast. OTC license, 750K+ acres of public land.", difficulty: "otc" },
+  south:     { species: "White-tailed Deer", state: "Texas",   tagline: "More whitetail than anywhere on earth. Private land leases are accessible and affordable.", difficulty: "otc" },
+  midwest:   { species: "Pheasant",          state: "South Dakota", tagline: "The pheasant capital of the world. Incredible bird numbers and walk-in access.", difficulty: "otc" },
+  west:      { species: "Elk",               state: "Idaho",   tagline: "OTC bull elk tags in the Frank Church Wilderness. No draw, no points — just buy the license.", difficulty: "otc" },
+  northwest: { species: "Black Bear",        state: "Montana", tagline: "OTC spring bear tags in western Montana. High density, big public land.", difficulty: "otc" },
+  southwest: { species: "Mule Deer",         state: "Nevada",  tagline: "Nevada issues more big game tags than most states. Some mule deer units draw with 0 points.", difficulty: "easy_draw" },
+  mountain:  { species: "Pronghorn",         state: "Wyoming", tagline: "Wyoming has more pronghorn than anywhere on earth. Many units draw in 1-2 years NR.", difficulty: "easy_draw" },
+  northeast: { species: "White-tailed Deer", state: "Pennsylvania", tagline: "Pennsylvania has one of the largest whitetail herds in the country. OTC license, huge public land.", difficulty: "otc" },
+};
+
+export const STATE_TO_REGION: Record<string, RegionKey> = {
+  GA: "southeast", FL: "southeast", SC: "southeast", NC: "southeast", AL: "southeast",
+  MS: "southeast", TN: "southeast", VA: "southeast", AR: "southeast",
+  TX: "south", OK: "south", LA: "south", KY: "south",
+  SD: "midwest", ND: "midwest", NE: "midwest", KS: "midwest", IA: "midwest",
+  MO: "midwest", MN: "midwest", WI: "midwest", IL: "midwest", IN: "midwest",
+  OH: "midwest", MI: "midwest",
+  ID: "west", OR: "west", CA: "west",
+  WA: "northwest", MT: "northwest", AK: "northwest",
+  NV: "southwest", AZ: "southwest", NM: "southwest", UT: "southwest",
+  WY: "mountain", CO: "mountain",
+  NY: "northeast", PA: "northeast", VT: "northeast", NH: "northeast", ME: "northeast",
+  MA: "northeast", CT: "northeast", RI: "northeast", NJ: "northeast",
+  DE: "northeast", MD: "northeast", WV: "northeast",
+};
+
+export const ASPIRATIONAL_HUNTS: Record<InspireMotivation, CuratedHuntSuggestion> = {
+  freezer:  { species: "Rocky Mountain Elk",       state: "Idaho",    tagline: "OTC bull elk tags available statewide — no draw, no points. A 5-day camp in the Frank Church Wilderness.", difficulty: "otc",  yearsToExpect: "This year",   hook: "Over-the-counter. No waiting. Just buy the license and go." },
+  trophy:   { species: "Rocky Mountain Bighorn Sheep", state: "Nevada",tagline: "Nevada issues more bighorn sheep tags than any other state. A true once-in-a-lifetime trophy hunt.", difficulty: "draw", yearsToExpect: "8-15 years",  hook: "Start your points today. Nevada is the best NR sheep state in the country." },
+  lifetime: { species: "Desert Bighorn Sheep",     state: "Arizona",  tagline: "Arizona bighorn sheep is the pinnacle of North American big game hunting. Record-class rams in the Sonoran Desert.", difficulty: "draw", yearsToExpect: "15-25 years", hook: "Apply every year. When you draw, it'll be the hunt of your life." },
+  balanced: { species: "Bull Elk",                 state: "Colorado", tagline: "Colorado has the largest elk population on earth. Preference points grow value every year — many units draw in 5-7 years.", difficulty: "draw", yearsToExpect: "3-7 years",   hook: "Best ROI in western big game. Start accumulating points now." },
+};
