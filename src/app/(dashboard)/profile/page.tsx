@@ -173,7 +173,7 @@ export default function ProfilePage() {
       )}
 
       {/* Quick stats */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2">
         {[
           { label: "States Active", value: profile.statesActive, icon: Target, color: "text-brand-forest dark:text-brand-sage" },
           { label: "Species", value: profile.speciesTracked, icon: Crosshair, color: "text-brand-sky" },
@@ -181,12 +181,12 @@ export default function ProfilePage() {
         ].map((stat) => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.label} className="text-center p-3">
-              <Icon className={cn("h-5 w-5 mx-auto", stat.color)} />
-              <p className="mt-1 text-lg font-bold text-brand-bark dark:text-brand-cream">
+            <Card key={stat.label} className="text-center p-2">
+              <Icon className={cn("h-4 w-4 mx-auto", stat.color)} />
+              <p className="mt-1 text-base font-bold text-brand-bark dark:text-brand-cream">
                 {stat.value}
               </p>
-              <p className="text-[11px] text-brand-sage">{stat.label}</p>
+              <p className="text-[10px] leading-tight text-brand-sage">{stat.label}</p>
             </Card>
           );
         })}

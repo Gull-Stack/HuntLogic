@@ -306,22 +306,22 @@ function ForecastsPageInner() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-3 gap-3 mb-4">
-                <div className="rounded-lg bg-brand-sage/5 p-3 text-center dark:bg-brand-sage/10">
-                  <p className="text-xs text-brand-sage">Cost/Opportunity</p>
-                  <p className="text-lg font-bold text-brand-bark dark:text-brand-cream">
+              <div className="grid grid-cols-3 gap-2 mb-4">
+                <div className="rounded-lg bg-brand-sage/5 p-2 text-center dark:bg-brand-sage/10">
+                  <p className="text-[10px] leading-tight text-brand-sage">Cost/Opp.</p>
+                  <p className="text-base font-bold text-brand-bark dark:text-brand-cream">
                     ${forecast.roi.costPerOpportunity.toLocaleString()}
                   </p>
                 </div>
-                <div className="rounded-lg bg-brand-sage/5 p-3 text-center dark:bg-brand-sage/10">
-                  <p className="text-xs text-brand-sage">Years to Draw</p>
-                  <p className="text-lg font-bold text-brand-bark dark:text-brand-cream">
+                <div className="rounded-lg bg-brand-sage/5 p-2 text-center dark:bg-brand-sage/10">
+                  <p className="text-[10px] leading-tight text-brand-sage">Yrs to Draw</p>
+                  <p className="text-base font-bold text-brand-bark dark:text-brand-cream">
                     ~{forecast.roi.projectedYears}
                   </p>
                 </div>
-                <div className="rounded-lg bg-brand-sage/5 p-3 text-center dark:bg-brand-sage/10">
-                  <p className="text-xs text-brand-sage">Total Investment</p>
-                  <p className="text-lg font-bold text-brand-bark dark:text-brand-cream">
+                <div className="rounded-lg bg-brand-sage/5 p-2 text-center dark:bg-brand-sage/10">
+                  <p className="text-[10px] leading-tight text-brand-sage">Total Invest.</p>
+                  <p className="text-base font-bold text-brand-bark dark:text-brand-cream">
                     ${forecast.roi.totalInvestment}
                   </p>
                 </div>

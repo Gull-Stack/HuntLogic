@@ -132,7 +132,7 @@ export function TopBar({ onMenuClick }: TopBarProps) {
                 className="fixed inset-0 z-[200]"
                 onClick={() => setShowDropdown(false)}
               />
-              <div className="absolute right-0 top-12 z-[201] w-80 rounded-xl border border-brand-sage/10 bg-white shadow-lg dark:bg-brand-bark dark:border-brand-sage/20">
+              <div className="absolute right-0 top-12 z-[201] w-[calc(100vw-2rem)] max-w-80 rounded-xl border border-brand-sage/10 bg-white shadow-lg dark:bg-brand-bark dark:border-brand-sage/20">
                 <div className="flex items-center justify-between border-b border-brand-sage/10 px-4 py-3 dark:border-brand-sage/20">
                   <span className="text-sm font-semibold text-brand-bark dark:text-brand-cream">
                     Notifications

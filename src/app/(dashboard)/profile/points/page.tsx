@@ -383,11 +383,15 @@ export default function PointsPage() {
                 Points
               </label>
               <input
-                type="number"
-                value={newPoints}
-                onChange={(e) => setNewPoints(parseInt(e.target.value) || 0)}
-                min={0}
-                max={30}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={newPoints === 0 ? "" : String(newPoints)}
+                placeholder="0"
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/\D/g, "");
+                  setNewPoints(raw === "" ? 0 : Math.min(30, parseInt(raw, 10)));
+                }}
                 className="w-full min-h-[44px] rounded-xl border border-brand-sage/20 bg-white px-4 py-2.5 text-base dark:bg-brand-bark dark:border-brand-sage/30 dark:text-brand-cream"
               />
             </div>
@@ -396,11 +400,15 @@ export default function PointsPage() {
                 Year Started
               </label>
               <input
-                type="number"
-                value={newYearStarted}
-                onChange={(e) => setNewYearStarted(parseInt(e.target.value) || 2020)}
-                min={2000}
-                max={2030}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={newYearStarted === 0 ? "" : String(newYearStarted)}
+                placeholder="2020"
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/\D/g, "");
+                  setNewYearStarted(raw === "" ? 2020 : Math.min(2030, Math.max(2000, parseInt(raw, 10))));
+                }}
                 className="w-full min-h-[44px] rounded-xl border border-brand-sage/20 bg-white px-4 py-2.5 text-base dark:bg-brand-bark dark:border-brand-sage/30 dark:text-brand-cream"
               />
             </div>
