@@ -365,33 +365,49 @@ export default function CalendarPage() {
           ))}
         </div>
 
-        {/* State filter */}
-        <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide">
-          <button
-            onClick={() => setStateFilter("all")}
+        {/* State filter — dropdown (scales to many states) */}
+        <div className="flex items-center gap-2">
+          <select
+            value={stateFilter}
+            onChange={(e) => setStateFilter(e.target.value)}
             className={cn(
-              "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors min-h-[32px]",
-              stateFilter === "all"
-                ? "bg-brand-earth text-white"
-                : "bg-brand-earth/10 text-brand-earth hover:bg-brand-earth/20",
+              "h-9 rounded-lg border border-brand-sage/20 dark:border-brand-sage/30 bg-white dark:bg-brand-bark",
+              "px-3 text-sm text-brand-bark dark:text-brand-cream",
+              "focus:outline-none focus:ring-2 focus:ring-brand-forest/40 dark:focus:ring-brand-sage/40",
+              "transition-colors cursor-pointer",
+              stateFilter !== "all" && "border-brand-earth text-brand-earth font-medium",
             )}
+            aria-label="Filter by state"
           >
-            All States
-          </button>
-          {uniqueStates.map((code) => (
+            <option value="all">All States ({uniqueStates.length})</option>
+            {uniqueStates.map((code) => {
+              const stateNames: Record<string, string> = {
+                AZ: "Arizona", CA: "California", CO: "Colorado",
+                ID: "Idaho", KY: "Kentucky", ME: "Maine",
+                MI: "Michigan", MN: "Minnesota", MT: "Montana",
+                ND: "North Dakota", NH: "New Hampshire", NM: "New Mexico",
+                NV: "Nevada", OR: "Oregon", PA: "Pennsylvania",
+                SD: "South Dakota", UT: "Utah", VA: "Virginia",
+                VT: "Vermont", WA: "Washington", WV: "West Virginia",
+                WY: "Wyoming",
+              };
+              const label = stateNames[code] ? `${stateNames[code]} (${code})` : code;
+              return (
+                <option key={code} value={code}>
+                  {label}
+                </option>
+              );
+            })}
+          </select>
+          {stateFilter !== "all" && (
             <button
-              key={code}
-              onClick={() => setStateFilter(code)}
-              className={cn(
-                "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors min-h-[32px]",
-                stateFilter === code
-                  ? "bg-brand-earth text-white"
-                  : "bg-brand-earth/10 text-brand-earth hover:bg-brand-earth/20",
-              )}
+              onClick={() => setStateFilter("all")}
+              className="text-xs text-brand-sage hover:text-brand-bark dark:hover:text-brand-cream transition-colors"
+              aria-label="Clear state filter"
             >
-              {code}
+              Clear
             </button>
-          ))}
+          )}
         </div>
       </div>
 

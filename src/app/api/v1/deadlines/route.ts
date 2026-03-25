@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
       .leftJoin(species, eq(deadlines.speciesId, species.id))
       .where(and(...conditions))
       .orderBy(asc(deadlines.deadlineDate))
-      .limit(100);
+      .limit(500);
 
     return NextResponse.json({ deadlines: rows });
   } catch (error) {
