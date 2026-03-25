@@ -50,6 +50,28 @@ interface CalendarDeadline {
 /*  Helpers                                                                   */
 /* -------------------------------------------------------------------------- */
 
+/** Map every DB deadline_type value to one of the 4 UI categories */
+function mapDeadlineType(raw: string | undefined): CalendarDeadline["type"] {
+  switch (raw) {
+    case "application_open":
+    case "application_deadline":
+    case "application":
+    case "other":
+      return "application";
+    case "preference_point":
+    case "point_purchase":
+      return "point_purchase";
+    case "draw_results":
+    case "draw_result":
+    case "results":
+      return "results";
+    case "season":
+      return "season";
+    default:
+      return "application";
+  }
+}
+
 function normalizeDeadline(raw: CalendarDeadlineRaw): CalendarDeadline {
   const date = raw.deadlineDate || raw.date || "";
   const days = date
@@ -62,7 +84,7 @@ function normalizeDeadline(raw: CalendarDeadlineRaw): CalendarDeadline {
     stateCode: raw.stateCode,
     title: raw.title,
     description: raw.description,
-    type: (raw.deadlineType || raw.type || "application") as CalendarDeadline["type"],
+    type: mapDeadlineType(raw.deadlineType || raw.type),
     status: raw.status || (days < 0 ? "passed" : days === 0 ? "today" : "upcoming"),
   };
 }
