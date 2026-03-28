@@ -98,7 +98,7 @@ export function Sheet({
           // Mobile: bottom sheet
           "fixed inset-x-0 bottom-0 z-[300] rounded-t-2xl bg-white transition-transform duration-300 dark:bg-brand-bark",
           // Desktop: side panel
-          "lg:inset-y-0 lg:right-0 lg:left-auto lg:bottom-auto lg:w-[420px] lg:rounded-t-none lg:rounded-l-2xl",
+          "lg:inset-y-0 lg:right-0 lg:left-auto lg:w-[420px] lg:rounded-t-none lg:rounded-l-2xl",
           snapHeights[snapPoint],
           "lg:max-h-full",
           isAnimating
