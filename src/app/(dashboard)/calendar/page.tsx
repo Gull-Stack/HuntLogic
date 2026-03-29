@@ -187,19 +187,36 @@ export default function CalendarPage() {
   const filteredDeadlines = deadlines
     .filter((d) => filter === "all" || d.type === filter)
     .filter((d) => stateFilter === "all" || d.stateCode === stateFilter)
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    .sort((a, b) => {
+      // Upcoming/today first, passed last
+      const aPass = a.status === "passed" ? 1 : 0;
+      const bPass = b.status === "passed" ? 1 : 0;
+      if (aPass !== bPass) return aPass - bPass;
+      // Within each group, sort by date ascending (soonest first)
+      return new Date(a.date).getTime() - new Date(b.date).getTime();
+    });
+
+  // Split into upcoming and passed for list view
+  const upcomingDeadlines = filteredDeadlines.filter((d) => d.status !== "passed");
+  const passedDeadlines = filteredDeadlines.filter((d) => d.status === "passed");
 
   // Group by month (list view)
-  const groupedByMonth = new Map<string, CalendarDeadline[]>();
-  for (const d of filteredDeadlines) {
-    const monthKey = new Date(d.date).toLocaleDateString("en-US", {
-      month: "long",
-      year: "numeric",
-    });
-    const group = groupedByMonth.get(monthKey) || [];
-    group.push(d);
-    groupedByMonth.set(monthKey, group);
-  }
+  const groupByMonth = (items: CalendarDeadline[]) => {
+    const grouped = new Map<string, CalendarDeadline[]>();
+    for (const d of items) {
+      const monthKey = new Date(d.date).toLocaleDateString("en-US", {
+        month: "long",
+        year: "numeric",
+      });
+      const group = grouped.get(monthKey) || [];
+      group.push(d);
+      grouped.set(monthKey, group);
+    }
+    return grouped;
+  };
+
+  const upcomingByMonth = groupByMonth(upcomingDeadlines);
+  const passedByMonth = groupByMonth(passedDeadlines);
 
   // Index by ISO date (month view)
   const deadlinesByDate = new Map<string, CalendarDeadline[]>();
@@ -450,7 +467,8 @@ export default function CalendarPage() {
           />
         ) : (
           <div className="space-y-6">
-            {Array.from(groupedByMonth.entries()).map(([month, items]) => (
+            {/* Upcoming deadlines */}
+            {Array.from(upcomingByMonth.entries()).map(([month, items]) => (
               <div key={month}>
                 <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-brand-sage">
                   {month}
@@ -460,13 +478,11 @@ export default function CalendarPage() {
                     const days = daysUntil(deadline.date);
                     const Icon = typeIcons[deadline.type] ?? CalendarDays;
                     const urgencyColor =
-                      days < 0
-                        ? "text-brand-sage"
-                        : days < 7
-                          ? "text-red-600 dark:text-red-400"
-                          : days < 14
-                            ? "text-amber-600 dark:text-amber-400"
-                            : "text-green-600 dark:text-green-400";
+                      days < 7
+                        ? "text-red-600 dark:text-red-400"
+                        : days < 14
+                          ? "text-amber-600 dark:text-amber-400"
+                          : "text-green-600 dark:text-green-400";
                     const openClose = parseOpenCloseDates(deadline.description);
 
                     return (
@@ -524,6 +540,85 @@ export default function CalendarPage() {
                 </div>
               </div>
             ))}
+
+            {/* Past deadlines separator + section */}
+            {passedByMonth.size > 0 && (
+              <>
+                <div className="flex items-center gap-3 pt-2">
+                  <div className="h-px flex-1 bg-brand-sage/20" />
+                  <span className="text-xs font-semibold uppercase tracking-wider text-brand-sage/60">
+                    Past Deadlines
+                  </span>
+                  <div className="h-px flex-1 bg-brand-sage/20" />
+                </div>
+
+                {Array.from(passedByMonth.entries()).map(([month, items]) => (
+                  <div key={month}>
+                    <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-brand-sage/60">
+                      {month}
+                    </h3>
+                    <div className="space-y-2">
+                      {items.map((deadline) => {
+                        const Icon = typeIcons[deadline.type] ?? CalendarDays;
+                        const openClose = parseOpenCloseDates(deadline.description);
+
+                        return (
+                          <Card key={deadline.id} className="flex items-center gap-3 opacity-50">
+                            {/* Date column */}
+                            <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-lg bg-brand-sage/5 dark:bg-brand-sage/10">
+                              <span className="text-[10px] font-medium uppercase text-brand-sage">
+                                {new Date(deadline.date).toLocaleDateString("en-US", {
+                                  month: "short",
+                                })}
+                              </span>
+                              <span className="text-lg font-bold leading-none text-brand-bark dark:text-brand-cream">
+                                {new Date(deadline.date).getDate()}
+                              </span>
+                            </div>
+
+                            {/* Content */}
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <Badge variant="info" size="sm">
+                                  {deadline.stateCode}
+                                </Badge>
+                                <Icon className="h-3.5 w-3.5 text-brand-sage" />
+                                <span className="text-xs text-brand-sage">
+                                  {typeLabels[deadline.type] ?? deadline.type}
+                                </span>
+                              </div>
+                              <p className="mt-0.5 truncate text-sm font-medium text-brand-bark dark:text-brand-cream">
+                                {deadline.title}
+                              </p>
+                              {openClose && (
+                                <p className="truncate text-xs text-brand-sage/70">
+                                  {openClose}
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Countdown + ICS */}
+                            <div className="flex shrink-0 items-center gap-2">
+                              <span className="text-xs font-semibold text-brand-sage">
+                                {formatCountdown(deadline.date)}
+                              </span>
+                              <button
+                                onClick={() => handleExportIcs(deadline)}
+                                className="flex h-8 w-8 items-center justify-center rounded-lg text-brand-sage transition-colors hover:bg-brand-sage/10"
+                                aria-label="Add to calendar"
+                                title="Download .ics"
+                              >
+                                <Download className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         ))}
 
