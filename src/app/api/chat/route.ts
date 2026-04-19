@@ -59,7 +59,12 @@ export async function OPTIONS() {
 export async function POST(request: NextRequest) {
   const headers = CORS_HEADERS;
 
-  const body = await request.json();
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400, headers });
+  }
   const { messages } = body as { messages: { role: string; content: string }[] };
 
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
@@ -70,9 +75,13 @@ export async function POST(request: NextRequest) {
   }
 
   for (const message of messages) {
-    if (typeof message?.content !== "string" || message.content.length > 4000) {
+    if (
+      typeof message?.content !== "string" ||
+      message.content.length === 0 ||
+      message.content.length > 4000
+    ) {
       return NextResponse.json(
-        { error: "Message too long" },
+        { error: "Message must be between 1 and 4000 characters" },
         { status: 400, headers }
       );
     }
@@ -86,7 +95,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Gateway first (OpenClaw via Cloudflare Tunnel), Anthropic SDK fallback
+  // Gateway first (OpenClaw via Cloudflare Tunnel), then Anthropic, Gemini, OpenAI
   try {
     const reply = await callGateway(messages);
     return NextResponse.json({ reply }, { headers });
@@ -99,6 +108,9 @@ export async function POST(request: NextRequest) {
     } catch (anthropicErr) {
       console.warn("[chat:public] Anthropic unavailable:", (anthropicErr as Error).message);
 
+      try {
+        const reply = await callGeminiDirect(messages);
+        return NextResponse.json({ reply }, { headers });
       } catch (geminiErr) {
         console.warn("[chat:public] Gemini unavailable:", (geminiErr as Error).message);
 
@@ -107,10 +119,11 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ reply }, { headers });
         } catch (openaiErr) {
           console.error("[chat:public] All backends failed:", openaiErr);
-        return NextResponse.json(
-          { reply: "I'm having a moment. Try messaging me on Telegram @TeddyLogicBot — I'm always online there." },
-          { status: 200, headers }
-        );
+          return NextResponse.json(
+            { reply: "I'm having a moment. Try messaging me on Telegram @TeddyLogicBot — I'm always online there." },
+            { status: 200, headers }
+          );
+        }
       }
     }
   }
@@ -158,13 +171,19 @@ async function callAnthropicDirect(
   if (!apiKey) throw new Error("No ANTHROPIC_API_KEY configured");
 
   const { default: Anthropic } = await import("@anthropic-ai/sdk");
-  const client = new Anthropic({ apiKey });
+  const client = new Anthropic({ apiKey, timeout: 20_000 });
 
   // Convert chat history to Anthropic format
-  const anthropicMessages = messages.map((m) => ({
-    role: m.role as "user" | "assistant",
-    content: m.content,
-  }));
+  const anthropicMessages = messages
+    .filter((m) => m.role === "user" || m.role === "assistant")
+    .map((m) => ({
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    }));
+
+  if (anthropicMessages.length === 0) {
+    throw new Error("No valid messages for Anthropic");
+  }
 
   const response = await client.messages.create({
     model: "claude-sonnet-4-6-20250514",
@@ -189,10 +208,10 @@ async function callOpenAIDirect(
   if (!apiKey) throw new Error("No OPENAI_API_KEY configured");
 
   const { OpenAI } = await import("openai");
-  const client = new OpenAI({ apiKey });
+  const client = new OpenAI({ apiKey, timeout: 20_000 });
 
   const completion = await client.chat.completions.create({
-    model: process.env.OPENAI_MODEL || "gpt-5.4",
+    model: process.env.OPENAI_MODEL || "gpt-4o",
     messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
     max_tokens: 300,
     temperature: 0.7,

@@ -34,7 +34,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
   const { message, history = [] } = body as {
     message: string;
     history: { role: string; content: string }[];
@@ -66,7 +71,7 @@ export async function POST(request: NextRequest) {
 
   const fullMessage = messageParts.join("\n\n");
 
-  // Try OpenClaw gateway first, then fall back to direct providers
+  // Try OpenClaw gateway first, then fall back to Anthropic, Gemini, and OpenAI
   try {
     const reply = await callOpenClawGateway(fullMessage);
     return NextResponse.json({ text: reply });
@@ -85,6 +90,9 @@ export async function POST(request: NextRequest) {
         anthropicErr instanceof Error ? anthropicErr.message : String(anthropicErr)
       );
 
+      try {
+        const reply = await callGeminiDirect(fullMessage);
+        return NextResponse.json({ text: reply });
       } catch (geminiErr) {
         console.warn(
           "[chat] Gemini unavailable, trying OpenAI:",
@@ -96,10 +104,11 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ text: reply });
         } catch (openaiErr) {
           console.error("[chat] All backends failed:", openaiErr);
-        return NextResponse.json(
-          { error: `${config.app.aiAssistantName} is currently unavailable. Try messaging him on Telegram: ${config.app.telegramBot}` },
-          { status: 503 }
-        );
+          return NextResponse.json(
+            { error: `${config.app.aiAssistantName} is currently unavailable. Try messaging him on Telegram: ${config.app.telegramBot}` },
+            { status: 503 }
+          );
+        }
       }
     }
   }
@@ -309,7 +318,7 @@ async function callAnthropicDirect(message: string): Promise<string> {
 
   // Dynamic import to avoid build errors when SDK isn't needed
   const { default: Anthropic } = await import("@anthropic-ai/sdk");
-  const client = new Anthropic({ apiKey });
+  const client = new Anthropic({ apiKey, timeout: 20_000 });
 
   const response = await client.messages.create({
     model: config.ai.model,
@@ -330,10 +339,10 @@ async function callOpenAIDirect(message: string): Promise<string> {
   }
 
   const { OpenAI } = await import("openai");
-  const client = new OpenAI({ apiKey });
+  const client = new OpenAI({ apiKey, timeout: 20_000 });
 
   const completion = await client.chat.completions.create({
-    model: process.env.OPENAI_MODEL || "gpt-5.4",
+    model: process.env.OPENAI_MODEL || "gpt-4o",
     messages: [
       { role: "system", content: `You are ${config.app.aiAssistantName}, the AI concierge for ${config.app.brandName} — a national hunting guide powered by real state agency data. You are knowledgeable, direct, and friendly — like a seasoned outfitter who genuinely wants hunters to fill their tags. Use specific numbers when available. When uncertain, say so clearly.` },
       { role: "user", content: message },
