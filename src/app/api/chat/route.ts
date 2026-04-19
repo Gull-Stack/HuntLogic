@@ -276,7 +276,8 @@ async function callGeminiDirect(
         contents: mergedContents,
         generationConfig: {
           temperature: 0.7,
-          maxOutputTokens: 300,
+          maxOutputTokens: 1024,
+          thinkingConfig: { thinkingBudget: 0 },
         },
       }),
       signal: AbortSignal.timeout(20000),

@@ -392,6 +392,7 @@ async function callGeminiDirect(message: string): Promise<string> {
         generationConfig: {
           temperature: 0.7,
           maxOutputTokens: 4096,
+          thinkingConfig: { thinkingBudget: 0 },
         },
       }),
       signal: AbortSignal.timeout(20000),
