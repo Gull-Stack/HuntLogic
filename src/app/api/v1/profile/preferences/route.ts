@@ -23,12 +23,14 @@ export async function GET(request: NextRequest) {
     if (!userId) {
       return NextResponse.json(
         { error: "Unauthorized", message: "User ID is required" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
     const url = new URL(request.url);
-    const categoryFilter = url.searchParams.get("category") as PreferenceCategory | null;
+    const categoryFilter = url.searchParams.get(
+      "category",
+    ) as PreferenceCategory | null;
 
     let preferences = await getPreferences(userId);
 
@@ -49,8 +51,11 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("[preferences] GET error:", error);
     return NextResponse.json(
-      { error: "Internal Server Error", message: "Failed to fetch preferences" },
-      { status: 500 }
+      {
+        error: "Internal Server Error",
+        message: "Failed to fetch preferences",
+      },
+      { status: 500 },
     );
   }
 }
@@ -66,7 +71,7 @@ export async function PUT(request: NextRequest) {
     if (!userId) {
       return NextResponse.json(
         { error: "Unauthorized", message: "User ID is required" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -78,13 +83,14 @@ export async function PUT(request: NextRequest) {
           error: "Bad Request",
           message: "Request body must include a 'preferences' array",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // Validate each preference
     const validCategories = new Set([
       "species_interest",
+      "state_interest",
       "hunt_orientation",
       "timeline",
       "budget",
@@ -108,7 +114,7 @@ export async function PUT(request: NextRequest) {
               "Each preference must have category, key, and value. Got: " +
               JSON.stringify(pref),
           },
-          { status: 400 }
+          { status: 400 },
         );
       }
 
@@ -118,7 +124,7 @@ export async function PUT(request: NextRequest) {
             error: "Bad Request",
             message: `Invalid category: ${pref.category}. Valid: ${[...validCategories].join(", ")}`,
           },
-          { status: 400 }
+          { status: 400 },
         );
       }
 
@@ -149,8 +155,11 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     console.error("[preferences] PUT error:", error);
     return NextResponse.json(
-      { error: "Internal Server Error", message: "Failed to update preferences" },
-      { status: 500 }
+      {
+        error: "Internal Server Error",
+        message: "Failed to update preferences",
+      },
+      { status: 500 },
     );
   }
 }

@@ -7,6 +7,7 @@
  */
 export type PreferenceCategory =
   | "species_interest"
+  | "state_interest"
   | "hunt_orientation"
   | "timeline"
   | "budget"
@@ -197,6 +198,7 @@ export const COMPLETENESS_WEIGHTS: Record<
   { points: number; label: string }
 > = {
   species_interest: { points: 20, label: "Species Interest" },
+  state_interest: { points: 0, label: "State Interest" },
   hunt_orientation: { points: 15, label: "Hunt Orientation" },
   timeline: { points: 15, label: "Timeline" },
   budget: { points: 10, label: "Budget" },

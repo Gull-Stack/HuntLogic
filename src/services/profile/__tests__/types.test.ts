@@ -3,6 +3,7 @@ import { COMPLETENESS_WEIGHTS, PLAYBOOK_READY_THRESHOLD } from "../types";
 
 const EXPECTED_CATEGORIES = [
   "species_interest",
+  "state_interest",
   "hunt_orientation",
   "timeline",
   "budget",
@@ -44,7 +45,7 @@ describe("COMPLETENESS_WEIGHTS", () => {
   it("total points sum to 100", () => {
     const total = Object.values(COMPLETENESS_WEIGHTS).reduce(
       (sum, v) => sum + v.points,
-      0
+      0,
     );
     expect(total).toBe(100);
   });
