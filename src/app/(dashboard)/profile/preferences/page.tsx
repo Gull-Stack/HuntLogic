@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Check } from "lucide-react";
+import Link from "next/link";
+import { Check, Award } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 
 interface SpeciesOption {
@@ -20,6 +21,18 @@ interface PreferenceItem {
   key: string;
   value: unknown;
   source: string;
+}
+
+interface PreferencesResponse {
+  data: PreferenceItem[];
+}
+
+interface SpeciesResponse {
+  species: SpeciesOption[];
+}
+
+interface RegulationsResponse {
+  states: StateOption[];
 }
 
 const ORIENTATION_OPTIONS = [
@@ -80,56 +93,108 @@ export default function PreferencesPage() {
   const [speciesOptions, setSpeciesOptions] = useState<SpeciesOption[]>([]);
   const [stateOptions, setStateOptions] = useState<StateOption[]>([]);
   const [dirty, setDirty] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
       const [prefsRes, speciesRes, statesRes] = await Promise.all([
-        apiClient.get<{ preferences: PreferenceItem[] }>("/profile/preferences"),
-        apiClient.get<{ species: SpeciesOption[] }>("/species"),
-        apiClient.get<{ states: StateOption[] }>("/regulations"),
+        apiClient.get<PreferencesResponse>("/profile/preferences"),
+        apiClient.get<SpeciesResponse>("/species"),
+        apiClient.get<RegulationsResponse>("/regulations"),
       ]);
-      setPrefs(prefsRes.data?.preferences ?? []);
-      setSpeciesOptions(speciesRes.data?.species ?? []);
-      setStateOptions(statesRes.data?.states ?? []);
+
+      let failedLoads = 0;
+
+      if (prefsRes.error) {
+        failedLoads += 1;
+      } else {
+        setPrefs(prefsRes.data?.data ?? []);
+      }
+
+      if (speciesRes.error) {
+        failedLoads += 1;
+      } else {
+        setSpeciesOptions(speciesRes.data?.species ?? []);
+      }
+
+      if (statesRes.error) {
+        failedLoads += 1;
+      } else {
+        setStateOptions(statesRes.data?.states ?? []);
+      }
+
+      setLoadError(
+        failedLoads > 0
+          ? "Some profile options failed to load. Double-check your selections before saving."
+          : null,
+      );
     } catch (err) {
       console.error("[preferences] Load failed:", err);
+      setLoadError("Couldn’t load your hunt profile right now.");
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const getValues = (category: string): string[] =>
     prefs.filter((p) => p.category === category).map((p) => p.key);
 
   const getSingleValue = (category: string, key: string): string =>
-    (prefs.find((p) => p.category === category && p.key === key)?.value as string) ?? "";
+    (prefs.find((p) => p.category === category && p.key === key)
+      ?.value as string) ?? "";
 
   const toggleMultiSelect = (category: string, key: string) => {
     setDirty(true);
     const exists = prefs.find((p) => p.category === category && p.key === key);
     if (exists) {
-      setPrefs(prefs.filter((p) => !(p.category === category && p.key === key)));
+      setPrefs(
+        prefs.filter((p) => !(p.category === category && p.key === key)),
+      );
     } else {
-      setPrefs([...prefs, { id: crypto.randomUUID(), category, key, value: true, source: "user" }]);
+      setPrefs([
+        ...prefs,
+        { id: crypto.randomUUID(), category, key, value: true, source: "user" },
+      ]);
     }
   };
 
   const setSingleSelect = (category: string, key: string, value: string) => {
     setDirty(true);
-    const updated = prefs.filter((p) => !(p.category === category && p.key === key));
-    updated.push({ id: crypto.randomUUID(), category, key, value, source: "user" });
+    const updated = prefs.filter(
+      (p) => !(p.category === category && p.key === key),
+    );
+    updated.push({
+      id: crypto.randomUUID(),
+      category,
+      key,
+      value,
+      source: "user",
+    });
     setPrefs(updated);
   };
 
   const handleSave = async () => {
     setSaving(true);
+    setSaveError(null);
+
     try {
-      await apiClient.put("/profile/preferences", { preferences: prefs });
+      const response = await apiClient.put("/profile/preferences", {
+        preferences: prefs,
+      });
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
       setDirty(false);
     } catch (err) {
       console.error("[preferences] Save failed:", err);
+      setSaveError("Couldn’t save your hunt profile. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -138,9 +203,16 @@ export default function PreferencesPage() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <div><h1 className="text-2xl font-bold text-brand-forest dark:text-brand-cream">Hunting Preferences</h1></div>
+        <div>
+          <h1 className="text-2xl font-bold text-brand-forest dark:text-brand-cream">
+            Edit Hunt Profile
+          </h1>
+        </div>
         {[1, 2, 3].map((i) => (
-          <div key={i} className="h-32 motion-safe:animate-pulse rounded-xl bg-brand-sage/10" />
+          <div
+            key={i}
+            className="h-32 motion-safe:animate-pulse rounded-xl bg-brand-sage/10"
+          />
         ))}
       </div>
     );
@@ -151,10 +223,11 @@ export default function PreferencesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-brand-forest dark:text-brand-cream">
-            Hunting Preferences
+            Edit Hunt Profile
           </h1>
           <p className="mt-1 text-sm text-brand-sage">
-            Update your preferences to refine recommendations
+            This is where you update the same profile details from onboarding
+            that drive your playbook and recommendations.
           </p>
         </div>
         {dirty && (
@@ -169,45 +242,104 @@ export default function PreferencesPage() {
         )}
       </div>
 
+      {loadError && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+          {loadError}
+        </div>
+      )}
+
+      {saveError && (
+        <div className="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
+          {saveError}
+        </div>
+      )}
+
+      <div className="rounded-xl border border-brand-sage/10 bg-brand-forest/[0.04] p-4 dark:border-brand-sage/20 dark:bg-brand-sage/10">
+        <p className="text-sm font-medium text-brand-bark dark:text-brand-cream">
+          Need to update your points too?
+        </p>
+        <p className="mt-1 text-sm text-brand-sage">
+          Species, states, budget, travel, and hunt style live here. Preference
+          and bonus points are managed separately.
+        </p>
+        <Link
+          href="/profile/points"
+          className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-brand-forest hover:text-brand-bark dark:text-brand-sage dark:hover:text-brand-cream"
+        >
+          <Award className="h-4 w-4" />
+          Go to Manage Points
+        </Link>
+      </div>
+
       {/* Target Species */}
-      <Section title="Target Species" description="Which species are you most interested in hunting?">
+      <Section
+        title="Target Species"
+        description="Which species are you most interested in hunting?"
+      >
         <div className="flex flex-wrap gap-2">
-          {speciesOptions.map((s) => (
-            <ToggleChip
-              key={s.slug}
-              label={s.name}
-              selected={getValues("species_interest").includes(s.slug)}
-              onClick={() => toggleMultiSelect("species_interest", s.slug)}
-            />
-          ))}
+          {speciesOptions.length === 0 ? (
+            <p className="text-sm text-brand-sage">
+              Species list unavailable right now.
+            </p>
+          ) : (
+            speciesOptions.map((s) => (
+              <ToggleChip
+                key={s.slug}
+                label={s.name}
+                selected={getValues("species_interest").includes(s.slug)}
+                onClick={() => toggleMultiSelect("species_interest", s.slug)}
+              />
+            ))
+          )}
         </div>
       </Section>
 
       {/* Target States */}
-      <Section title="Target States" description="Which states are you interested in?">
+      <Section
+        title="Target States"
+        description="Which states are you interested in?"
+      >
         <div className="flex flex-wrap gap-2">
-          {stateOptions.map((s) => (
-            <ToggleChip
-              key={s.code}
-              label={`${s.code} — ${s.name}`}
-              selected={getValues("state_interest").includes(s.code.toLowerCase())}
-              onClick={() => toggleMultiSelect("state_interest", s.code.toLowerCase())}
-            />
-          ))}
+          {stateOptions.length === 0 ? (
+            <p className="text-sm text-brand-sage">
+              State list unavailable right now.
+            </p>
+          ) : (
+            stateOptions.map((s) => (
+              <ToggleChip
+                key={s.code}
+                label={`${s.code} — ${s.name}`}
+                selected={getValues("state_interest").includes(
+                  s.code.toLowerCase(),
+                )}
+                onClick={() =>
+                  toggleMultiSelect("state_interest", s.code.toLowerCase())
+                }
+              />
+            ))
+          )}
         </div>
       </Section>
 
       {/* Hunt Orientation */}
-      <Section title="Hunt Orientation" description="What's your primary hunting goal?">
+      <Section
+        title="Hunt Orientation"
+        description="What's your primary hunting goal?"
+      >
         <RadioGroup
           options={ORIENTATION_OPTIONS}
           value={getSingleValue("hunt_orientation", "orientation")}
-          onChange={(v) => setSingleSelect("hunt_orientation", "orientation", v)}
+          onChange={(v) =>
+            setSingleSelect("hunt_orientation", "orientation", v)
+          }
         />
       </Section>
 
       {/* Budget */}
-      <Section title="Annual Budget" description="Approximate yearly hunting budget">
+      <Section
+        title="Annual Budget"
+        description="Approximate yearly hunting budget"
+      >
         <RadioGroup
           options={BUDGET_OPTIONS}
           value={getSingleValue("budget", "annual_budget")}
@@ -225,7 +357,10 @@ export default function PreferencesPage() {
       </Section>
 
       {/* Travel Tolerance */}
-      <Section title="Travel Tolerance" description="How far are you willing to travel?">
+      <Section
+        title="Travel Tolerance"
+        description="How far are you willing to travel?"
+      >
         <RadioGroup
           options={TRAVEL_OPTIONS}
           value={getSingleValue("travel", "travel_tolerance")}
@@ -234,7 +369,10 @@ export default function PreferencesPage() {
       </Section>
 
       {/* Weapon Preferences */}
-      <Section title="Weapon Preferences" description="What weapons do you hunt with?">
+      <Section
+        title="Weapon Preferences"
+        description="What weapons do you hunt with?"
+      >
         <div className="flex flex-wrap gap-2">
           {WEAPON_OPTIONS.map((w) => (
             <ToggleChip
@@ -248,7 +386,10 @@ export default function PreferencesPage() {
       </Section>
 
       {/* Hunt Style */}
-      <Section title="Hunt Style" description="What type of hunting experience do you prefer?">
+      <Section
+        title="Hunt Style"
+        description="What type of hunting experience do you prefer?"
+      >
         <div className="flex flex-wrap gap-2">
           {HUNT_STYLE_OPTIONS.map((s) => (
             <ToggleChip
@@ -262,7 +403,10 @@ export default function PreferencesPage() {
       </Section>
 
       {/* Physical Ability */}
-      <Section title="Physical Ability" description="Your physical fitness level for hunting">
+      <Section
+        title="Physical Ability"
+        description="Your physical fitness level for hunting"
+      >
         <RadioGroup
           options={PHYSICAL_OPTIONS}
           value={getSingleValue("physical", "physical_ability")}
@@ -273,20 +417,39 @@ export default function PreferencesPage() {
   );
 }
 
-function Section({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
+function Section({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="rounded-xl border border-brand-sage/10 bg-white p-6 dark:bg-brand-bark dark:border-brand-sage/20">
-      <h3 className="text-lg font-semibold text-brand-bark dark:text-brand-cream">{title}</h3>
+      <h2 className="text-lg font-semibold text-brand-bark dark:text-brand-cream">
+        {title}
+      </h2>
       <p className="mt-1 mb-4 text-sm text-brand-sage">{description}</p>
       {children}
     </div>
   );
 }
 
-function ToggleChip({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) {
+function ToggleChip({
+  label,
+  selected,
+  onClick,
+}: {
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       onClick={onClick}
+      aria-pressed={selected}
       className={`min-h-[40px] rounded-full border px-4 py-2 text-sm font-medium transition-all ${
         selected
           ? "border-brand-forest bg-brand-forest/10 text-brand-forest dark:border-brand-sage dark:bg-brand-sage/20 dark:text-brand-cream"
@@ -308,11 +471,13 @@ function RadioGroup({
   onChange: (v: string) => void;
 }) {
   return (
-    <div className="grid gap-2 sm:grid-cols-2">
+    <div className="grid gap-2 sm:grid-cols-2" role="radiogroup">
       {options.map((opt) => (
         <button
           key={opt.value}
           onClick={() => onChange(opt.value)}
+          role="radio"
+          aria-checked={value === opt.value}
           className={`min-h-[44px] rounded-[10px] border px-4 py-3 text-left text-sm font-medium transition-all ${
             value === opt.value
               ? "border-brand-forest bg-brand-forest/10 text-brand-forest dark:border-brand-sage dark:bg-brand-sage/20 dark:text-brand-cream"

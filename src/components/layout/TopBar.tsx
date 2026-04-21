@@ -29,7 +29,7 @@ const routeTitles: Record<string, string> = {
   "/chat": "Chat",
   "/profile": "Profile",
   "/profile/points": "Preference Points",
-  "/profile/preferences": "Preferences",
+  "/profile/preferences": "Edit Hunt Profile",
   "/profile/strategy": "Annual Strategy",
   "/settings": "Settings",
   "/profile/harvest": "Harvest Log",
@@ -67,13 +67,22 @@ export function TopBar({ onMenuClick }: TopBarProps) {
   }, [fetchNotifications]);
 
   const markAllRead = async () => {
-    await fetch("/api/v1/notifications", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "mark_all_read" }),
-    });
-    setUnreadCount(0);
-    setItems((prev) => prev.map((n) => ({ ...n, read: true })));
+    try {
+      const res = await fetch("/api/v1/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "mark_all_read" }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to mark notifications as read");
+      }
+
+      setUnreadCount(0);
+      setItems((prev) => prev.map((n) => ({ ...n, read: true })));
+    } catch (error) {
+      console.error("[notifications] markAllRead failed:", error);
+    }
   };
 
   const handleNotificationClick = async (n: Notification) => {
@@ -84,7 +93,9 @@ export function TopBar({ onMenuClick }: TopBarProps) {
         body: JSON.stringify({ action: "mark_read", notificationId: n.id }),
       });
       setUnreadCount((c) => Math.max(0, c - 1));
-      setItems((prev) => prev.map((item) => item.id === n.id ? { ...item, read: true } : item));
+      setItems((prev) =>
+        prev.map((item) => (item.id === n.id ? { ...item, read: true } : item)),
+      );
     }
     if (n.actionUrl) {
       router.push(n.actionUrl);
@@ -95,7 +106,7 @@ export function TopBar({ onMenuClick }: TopBarProps) {
   return (
     <header
       className={cn(
-        "sticky top-0 z-[100] flex h-14 items-center justify-between border-b border-brand-sage/10 bg-white/80 px-4 backdrop-blur-lg lg:hidden dark:bg-brand-bark/80 dark:border-brand-sage/20"
+        "sticky top-0 z-[100] flex h-14 items-center justify-between border-b border-brand-sage/10 bg-white/80 px-4 backdrop-blur-lg lg:hidden dark:bg-brand-bark/80 dark:border-brand-sage/20",
       )}
       style={{ paddingTop: "env(safe-area-inset-top)" }}
     >
@@ -117,6 +128,8 @@ export function TopBar({ onMenuClick }: TopBarProps) {
             onClick={() => setShowDropdown(!showDropdown)}
             className="relative flex h-10 w-10 items-center justify-center rounded-lg text-brand-bark transition-colors hover:bg-brand-sage/10 dark:text-brand-cream"
             aria-label="Notifications"
+            aria-haspopup="true"
+            aria-expanded={showDropdown}
           >
             <Bell className="h-5 w-5" />
             {unreadCount > 0 && (
@@ -159,15 +172,17 @@ export function TopBar({ onMenuClick }: TopBarProps) {
                         onClick={() => handleNotificationClick(n)}
                         className={cn(
                           "w-full px-4 py-3 text-left transition-colors hover:bg-brand-sage/5",
-                          !n.read && "bg-brand-forest/5 dark:bg-brand-sage/10"
+                          !n.read && "bg-brand-forest/5 dark:bg-brand-sage/10",
                         )}
                       >
-                        <p className={cn(
-                          "text-sm",
-                          n.read
-                            ? "text-brand-sage"
-                            : "font-medium text-brand-bark dark:text-brand-cream"
-                        )}>
+                        <p
+                          className={cn(
+                            "text-sm",
+                            n.read
+                              ? "text-brand-sage"
+                              : "font-medium text-brand-bark dark:text-brand-cream",
+                          )}
+                        >
                           {n.title}
                         </p>
                         <p className="mt-0.5 text-xs text-brand-sage line-clamp-2">
@@ -194,7 +209,10 @@ export function TopBar({ onMenuClick }: TopBarProps) {
 }
 
 function formatTimeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return "Unknown time";
+
+  const diff = Date.now() - date.getTime();
   const minutes = Math.floor(diff / 60000);
   if (minutes < 1) return "Just now";
   if (minutes < 60) return `${minutes}m ago`;
