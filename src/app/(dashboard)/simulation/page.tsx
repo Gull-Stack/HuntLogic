@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
+import { getPointTypesForState } from "@/lib/data/state-point-systems";
 import { Plus, Trash2, Play, Trophy, DollarSign, Clock } from "lucide-react";
 
 interface ScenarioInput {
@@ -48,6 +49,28 @@ const emptyScenario = (): ScenarioInput => ({
   strategy: "preference",
 });
 
+const STRATEGY_LABELS: Record<ScenarioInput["strategy"], string> = {
+  preference: "Preference",
+  bonus: "Bonus",
+  random: "Random",
+};
+
+function normalizePointType(pointType: string): ScenarioInput["strategy"] {
+  if (pointType === "bonus" || pointType === "weighted") return "bonus";
+  if (pointType === "none") return "random";
+  return "preference";
+}
+
+function getAvailableStrategies(stateCode: string): ScenarioInput["strategy"][] {
+  if (!stateCode) return ["preference", "bonus", "random"];
+
+  const normalized = Array.from(
+    new Set(getPointTypesForState(stateCode).map(normalizePointType))
+  );
+
+  return normalized.length > 0 ? normalized : ["preference", "bonus", "random"];
+}
+
 export default function SimulationPage() {
   const [scenarios, setScenarios] = useState<ScenarioInput[]>([emptyScenario()]);
   const [results, setResults] = useState<ComparisonResult | null>(null);
@@ -92,7 +115,20 @@ export default function SimulationPage() {
 
   const updateScenario = (idx: number, field: keyof ScenarioInput, value: string | number) => {
     setScenarios(
-      scenarios.map((s, i) => (i === idx ? { ...s, [field]: value } : s))
+      scenarios.map((s, i) => {
+        if (i !== idx) return s;
+
+        const next = { ...s, [field]: value } as ScenarioInput;
+
+        if (field === "stateCode") {
+          const availableStrategies = getAvailableStrategies(String(value));
+          if (!availableStrategies.includes(next.strategy)) {
+            next.strategy = availableStrategies[0] ?? "preference";
+          }
+        }
+
+        return next;
+      })
     );
   };
 
@@ -135,11 +171,15 @@ export default function SimulationPage() {
 
       {/* Scenario Builder */}
       <div className="space-y-4">
-        {scenarios.map((scenario, idx) => (
-          <div
-            key={idx}
-            className="rounded-xl border border-brand-sage/10 bg-white p-4 shadow-sm dark:border-brand-sage/20 dark:bg-brand-bark"
-          >
+        {scenarios.map((scenario, idx) => {
+          const availableStrategies = getAvailableStrategies(scenario.stateCode);
+          const shouldShowStrategySelector = availableStrategies.length > 1;
+
+          return (
+            <div
+              key={idx}
+              className="rounded-xl border border-brand-sage/10 bg-white p-4 shadow-sm dark:border-brand-sage/20 dark:bg-brand-bark"
+            >
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-brand-bark dark:text-brand-cream">
                 Scenario {idx + 1}
@@ -192,17 +232,27 @@ export default function SimulationPage() {
                 className="min-h-[44px] w-full rounded-[10px] border border-brand-sage/20 bg-white px-3 py-2 text-sm text-brand-bark dark:border-brand-sage/30 dark:bg-brand-bark/50 dark:text-brand-cream"
               />
 
-              <select
-                value={scenario.strategy}
-                onChange={(e) =>
-                  updateScenario(idx, "strategy", e.target.value)
-                }
-                className="min-h-[44px] w-full appearance-none rounded-[10px] border border-brand-sage/20 bg-white px-3 py-2 text-sm text-brand-bark dark:border-brand-sage/30 dark:bg-brand-bark/50 dark:text-brand-cream"
-              >
-                <option value="preference">Preference</option>
-                <option value="bonus">Bonus</option>
-                <option value="random">Random</option>
-              </select>
+              {shouldShowStrategySelector ? (
+                <select
+                  value={scenario.strategy}
+                  onChange={(e) =>
+                    updateScenario(idx, "strategy", e.target.value)
+                  }
+                  className="min-h-[44px] w-full appearance-none rounded-[10px] border border-brand-sage/20 bg-white px-3 py-2 text-sm text-brand-bark dark:border-brand-sage/30 dark:bg-brand-bark/50 dark:text-brand-cream"
+                >
+                  {availableStrategies.map((strategy) => (
+                    <option key={strategy} value={strategy}>
+                      {STRATEGY_LABELS[strategy]}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="flex min-h-[44px] items-center rounded-[10px] border border-brand-sage/20 bg-brand-sage/5 px-3 py-2 text-sm text-brand-sage dark:border-brand-sage/30 dark:bg-brand-sage/10 dark:text-brand-cream/80">
+                  {scenario.stateCode
+                    ? `${STRATEGY_LABELS[availableStrategies[0] ?? "preference"]} points`
+                    : "Point system auto-detected"}
+                </div>
+              )}
 
               <input
                 type="text"
@@ -212,8 +262,14 @@ export default function SimulationPage() {
                 className="min-h-[44px] w-full rounded-[10px] border border-brand-sage/20 bg-white px-3 py-2 text-sm text-brand-bark placeholder:text-brand-sage/50 dark:border-brand-sage/30 dark:bg-brand-bark/50 dark:text-brand-cream"
               />
             </div>
-          </div>
-        ))}
+            {scenario.stateCode && !shouldShowStrategySelector && (
+              <p className="mt-2 text-xs text-brand-sage">
+                Point type is locked by state for this scenario.
+              </p>
+            )}
+            </div>
+          );
+        })}
 
         <div className="flex gap-3">
           {scenarios.length < 3 && (

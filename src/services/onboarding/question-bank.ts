@@ -8,6 +8,17 @@ import { states, species } from "@/lib/db/schema";
 
 import type { QuestionDefinition, QuestionOption } from "./types";
 
+const SPECIES_OPTION_OVERRIDES: Record<string, { label: string; description?: string }> = {
+  pheasant: { label: "Upland Birds", description: "Pheasant, quail, grouse, chukar, and other upland birds" },
+  upland_birds: { label: "Upland Birds", description: "Pheasant, quail, grouse, chukar, and other upland birds" },
+  waterfowl: { label: "Waterfowl (Ducks & Geese)", description: "Ducks, geese, and other migratory waterfowl" },
+  small_game: { label: "Small Game", description: "Rabbit, squirrel, and other small game" },
+  predators: { label: "Predators", description: "Wolf, coyote, fox, bobcat, and other predators" },
+  brown_bear: { label: "Brown Bear", description: "Coastal brown/grizzly bear opportunities" },
+  hogs: { label: "Hogs", description: "Wild pigs and feral hogs" },
+  furbearer: { label: "Furbearer", description: "Trapping and furbearer species" },
+};
+
 // =============================================================================
 // Question Definitions
 // =============================================================================
@@ -163,8 +174,9 @@ export async function getDynamicOptions(questionId: string): Promise<QuestionOpt
 
       return allSpecies.map((s) => ({
         value: s.slug,
-        label: s.commonName,
-        description: s.category ?? undefined,
+        label: SPECIES_OPTION_OVERRIDES[s.slug]?.label ?? s.commonName,
+        description:
+          SPECIES_OPTION_OVERRIDES[s.slug]?.description ?? s.category ?? undefined,
       }));
     }
 

@@ -8,21 +8,59 @@ import { BookOpen } from "lucide-react";
 import type { PlaybookData } from "@/services/intelligence/types";
 import { fetchWithCache, invalidateCache } from "@/lib/api/cache";
 
+interface ProfileSummary {
+  onboardingComplete?: boolean;
+  completeness?: {
+    score: number;
+    missingCategories: string[];
+    isPlaybookReady: boolean;
+  };
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  species_interest: "species interests",
+  state_interest: "state interests",
+  hunt_orientation: "hunt goals",
+  timeline: "timeline",
+  budget: "budget",
+  experience: "existing points",
+  travel: "travel tolerance",
+  hunt_style: "hunt style",
+  weapon: "weapon preferences",
+  physical: "physical ability",
+  location: "home state",
+  land_access: "land access",
+};
+
 export default function PlaybookPage() {
   const [playbook, setPlaybook] = useState<PlaybookData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [profileComplete] = useState(true);
+  const [profile, setProfile] = useState<ProfileSummary | null>(null);
 
   useEffect(() => {
     async function fetchPlaybook() {
       try {
-        const data = await fetchWithCache<{ playbook: PlaybookData | null }>(
+        const playbookData = await fetchWithCache<{ playbook: PlaybookData | null }>(
           "/api/v1/playbook",
           { staleMs: 60_000 }
         );
-        setPlaybook(data.playbook ?? null);
+        setPlaybook(playbookData.playbook ?? null);
+
+        try {
+          const profileData = await fetchWithCache<{ data?: ProfileSummary; meta?: { completeness?: ProfileSummary["completeness"] } }>(
+            "/api/v1/profile",
+            { staleMs: 60_000 }
+          );
+          setProfile({
+            onboardingComplete: profileData.data?.onboardingComplete,
+            completeness: profileData.meta?.completeness ?? profileData.data?.completeness,
+          });
+        } catch (profileErr) {
+          console.error("[playbook] Failed to fetch profile context:", profileErr);
+          setProfile(null);
+        }
       } catch (err) {
         // fetchWithCache throws on non-ok responses; treat 404 as no playbook
         console.error("[playbook] Failed to fetch:", err);
@@ -67,7 +105,13 @@ export default function PlaybookPage() {
     );
   }
 
-  if (!profileComplete && !playbook) {
+  const profileComplete = profile?.completeness?.isPlaybookReady ?? false;
+  const missingLabels = profile?.completeness?.missingCategories
+    ?.slice(0, 3)
+    .map((category) => CATEGORY_LABELS[category] ?? category.replace(/_/g, " "))
+    .join(", ");
+
+  if (!playbook && profile && !profileComplete) {
     return (
       <div className="space-y-6">
         <div>
@@ -80,10 +124,10 @@ export default function PlaybookPage() {
         </div>
         <EmptyState
           icon={<BookOpen className="h-8 w-8" />}
-          title="Complete Your Profile First"
-          description="We need to know more about your hunting goals before we can build your strategy."
-          actionLabel="Continue Setup"
-          actionHref="/onboarding"
+          title="We need a little more profile data first"
+          description={`Your profile is ${profile.completeness?.score ?? 0}% complete. Finish ${missingLabels || "the missing sections"} so the playbook has enough information to build a real strategy.`}
+          actionLabel={profile.onboardingComplete ? "Finish Hunt Profile" : "Continue Onboarding"}
+          actionHref={profile.onboardingComplete ? "/profile/preferences" : "/onboarding"}
         />
       </div>
     );

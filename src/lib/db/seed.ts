@@ -137,6 +137,13 @@ async function seed() {
     { slug: "bison", commonName: "Bison", scientificName: "Bison bison", category: "big_game", config: {}, enabled: true },
     { slug: "javelina", commonName: "Javelina", scientificName: "Dicotyles tajacu", category: "big_game", config: {}, enabled: true },
     { slug: "mountain_lion", commonName: "Mountain Lion", scientificName: "Puma concolor", category: "big_game", config: {}, enabled: true },
+    { slug: "upland_birds", commonName: "Upland Birds", scientificName: "Various upland game birds", category: "upland", config: { examples: ["pheasant", "quail", "grouse", "chukar"] }, enabled: true },
+    { slug: "waterfowl", commonName: "Waterfowl (Ducks & Geese)", scientificName: "Various waterfowl species", category: "waterfowl", config: { examples: ["ducks", "geese"] }, enabled: true },
+    { slug: "small_game", commonName: "Small Game", scientificName: "Various small game species", category: "small_game", config: { examples: ["rabbit", "squirrel"] }, enabled: true },
+    { slug: "predators", commonName: "Predators", scientificName: "Various predator species", category: "big_game", config: { examples: ["wolf", "coyote", "fox", "bobcat"] }, enabled: true },
+    { slug: "brown_bear", commonName: "Brown Bear", scientificName: "Ursus arctos", category: "big_game", config: {}, enabled: true },
+    { slug: "hogs", commonName: "Hogs", scientificName: "Sus scrofa", category: "big_game", config: { aliases: ["wild pig", "feral hog"] }, enabled: true },
+    { slug: "furbearer", commonName: "Furbearer", scientificName: "Various furbearing species", category: "small_game", config: { examples: ["beaver", "marten", "otter", "trapper species"] }, enabled: true },
   ];
 
   const insertedSpecies = await db

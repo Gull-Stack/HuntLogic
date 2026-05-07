@@ -14,6 +14,7 @@ import {
   species,
 } from "@/lib/db/schema";
 import { processRecommendationFeedback } from "@/services/intelligence/feedback-engine";
+import type { RecommendationOutput } from "@/services/intelligence/types";
 
 const LOG_PREFIX = "[api:recommendations]";
 
@@ -131,33 +132,74 @@ export async function GET(request: NextRequest) {
     const paginated = filtered.slice(offset, offset + limit);
 
     // Format response
-    const responseRecs = paginated.map((rec) => ({
+    const responseRecs: RecommendationOutput[] = paginated.map((rec) => ({
       id: rec.id,
-      state: {
-        id: rec.stateId,
-        code: rec.stateCode,
-        name: rec.stateName,
+      hunt: {
+        stateId: rec.stateId,
+        stateCode: rec.stateCode,
+        stateName: rec.stateName,
+        speciesId: rec.speciesId,
+        speciesSlug: rec.speciesSlug,
+        speciesName: rec.speciesName,
+        huntUnitId: rec.huntUnitId,
+        unitCode: null,
+        unitName: null,
+        publicLandPct: null,
+        terrainClass: null,
+        elevationMin: null,
+        elevationMax: null,
+        hasDraw: rec.recType !== "otc_opportunity",
+        hasOtc: rec.recType === "otc_opportunity",
+        hasPoints: ["apply_now", "build_points", "watch"].includes(rec.recType),
+        pointType: null,
+        weaponTypes: [],
+        latestDrawRate: (rec.drawOddsCtx as Record<string, unknown>)?.drawRate as number | null ?? null,
+        latestMinPoints: (rec.drawOddsCtx as Record<string, unknown>)?.minPoints as number | null ?? null,
+        latestMaxPoints: (rec.drawOddsCtx as Record<string, unknown>)?.maxPoints as number | null ?? null,
+        latestAvgPoints: (rec.drawOddsCtx as Record<string, unknown>)?.avgPoints as number | null ?? null,
+        totalApplicants: null,
+        totalTags: null,
+        latestSuccessRate: (rec.forecastCtx as Record<string, unknown>)?.successRate as number | null ?? null,
+        trophyMetrics: null,
+        tagType: rec.recType === "otc_opportunity" ? "otc" : "draw",
+        seasonName: null,
+        seasonStart: null,
+        seasonEnd: null,
+        estimatedCost: rec.costEstimate as RecommendationOutput["costEstimate"],
+        estimatedDriveHours: null,
+        filtersApplied: [],
+        factors: rec.factors as RecommendationOutput["hunt"]["factors"],
+        weightsUsed: {
+          draw_odds: 0.2,
+          trophy_quality: 0.15,
+          success_rate: 0.15,
+          cost_efficiency: 0.15,
+          access: 0.1,
+          forecast: 0.1,
+          personal_fit: 0.1,
+          timeline_fit: 0.05,
+        },
+        compositeScore: rec.score ?? 0,
+        rank: rec.rank ?? 0,
+        confidence: {
+          score: rec.confidence ?? 0.5,
+          label: (rec.confidence ?? 0.5) >= 0.7 ? "high" : (rec.confidence ?? 0.5) >= 0.4 ? "medium" : "low",
+          basis: "Loaded from saved recommendation data.",
+        },
+        timelineCategory: (rec.timeline ?? "1-3_years") as RecommendationOutput["hunt"]["timelineCategory"],
+        recType: rec.recType as RecommendationOutput["hunt"]["recType"],
       },
-      species: {
-        id: rec.speciesId,
-        slug: rec.speciesSlug,
-        name: rec.speciesName,
+      rationale: rec.rationale ?? "",
+      costEstimate: rec.costEstimate as RecommendationOutput["costEstimate"],
+      timelineEstimate: { earliest: "", expected: "", latest: "" },
+      confidence: {
+        score: rec.confidence ?? 0.5,
+        label: (rec.confidence ?? 0.5) >= 0.7 ? "high" : (rec.confidence ?? 0.5) >= 0.4 ? "medium" : "low",
+        basis: "Loaded from saved recommendation data.",
       },
-      huntUnitId: rec.huntUnitId,
-      recType: rec.recType,
-      orientation: rec.orientation,
-      rank: rec.rank,
-      score: rec.score,
-      confidence: rec.confidence,
-      rationale: rec.rationale,
-      costEstimate: rec.costEstimate,
-      timeline: rec.timeline,
-      drawOddsContext: rec.drawOddsCtx,
-      forecastContext: rec.forecastCtx,
-      scoringFactors: rec.factors,
-      status: rec.status,
-      userFeedback: rec.userFeedback,
-      createdAt: rec.createdAt.toISOString(),
+      forecast: (rec.forecastCtx as RecommendationOutput["forecast"]) ?? undefined,
+      orientation: (rec.orientation ?? "balanced") as RecommendationOutput["orientation"],
+      status: (rec.status ?? "active") as RecommendationOutput["status"],
     }));
 
     return NextResponse.json({
