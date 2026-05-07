@@ -64,6 +64,7 @@ export default function HuntMap({ stateFilter, speciesFilter }: HuntMapProps) {
 
     (async () => {
       const maplibregl = (await import("maplibre-gl")).default;
+      // @ts-expect-error — maplibre's CSS file has no type declaration; runtime side-effect import.
       await import("maplibre-gl/dist/maplibre-gl.css");
 
       if (cancelled || !mapContainer.current) return;
@@ -116,7 +117,12 @@ export default function HuntMap({ stateFilter, speciesFilter }: HuntMapProps) {
   useEffect(() => {
     if (!mapRef.current || !mapLoaded || units.length === 0) return;
 
-    let maplibregl: typeof import("maplibre-gl").default | null = null;
+    // maplibre-gl is an ESM-default-only export; eslint/tsc can't reify the
+    // .default member on the namespace type, so widen and trust the runtime.
+    let maplibregl: Awaited<ReturnType<typeof loadMaplibre>> | null = null;
+    async function loadMaplibre() {
+      return (await import("maplibre-gl")).default;
+    }
 
     (async () => {
       maplibregl = (await import("maplibre-gl")).default;

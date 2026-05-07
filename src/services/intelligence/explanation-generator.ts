@@ -354,10 +354,6 @@ function buildFallbackExplanation(
 ): string {
   const parts: string[] = [];
 
-  // Profile context available for future template expansion
-  const _orientation = getPreference(profile, "hunt_orientation", "orientation");
-  const _timeline = getPreference(profile, "timeline", "timeline");
-
   if (hunt.recType === "otc_opportunity") {
     parts.push(
       `${hunt.stateName} offers over-the-counter ${hunt.speciesName} tags, meaning you can hunt this year without a draw.`

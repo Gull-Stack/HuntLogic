@@ -233,12 +233,6 @@ function getPhysicalAbility(profile: HunterProfile): string {
   return "moderate";
 }
 
-function getOrientation(profile: HunterProfile): string {
-  const val = getPreferenceValue(profile, "hunt_orientation", "orientation");
-  if (typeof val === "string") return val;
-  return "balanced";
-}
-
 // =============================================================================
 // Main Candidate Generator
 // =============================================================================
@@ -263,8 +257,7 @@ export async function generateCandidates(
   const weaponPrefs = getWeaponPreferences(profile);
   const huntStyle = getHuntStyle(profile);
   const physicalAbility = getPhysicalAbility(profile);
-  // orientation is resolved downstream in scoring engine
-  const _orientation = getOrientation(profile);
+  // orientation is resolved downstream in scoring engine, no need to fetch here
 
   // ---- 1. Get species interests ----
   const speciesInterests = getPreferenceValues(profile, "species_interest");
@@ -353,9 +346,6 @@ export async function generateCandidates(
         inArray(huntUnits.speciesId, speciesIds)
       )
     );
-
-  // unitMap available for future lookups
-  const _unitMap = new Map(unitQuery.map((u) => [u.id, u]));
 
   // ---- 7. Build candidates ----
   const candidates: HuntCandidate[] = [];

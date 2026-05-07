@@ -4,7 +4,7 @@
 
 import { db } from "@/lib/db";
 import { outfitters } from "@/lib/db/schema";
-import { eq, and, desc, gte } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 
 interface OutfitterMatch {
   id: string;

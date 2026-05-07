@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { recommendations, states, species, users } from "@/lib/db/schema";
+import { recommendations, states, species } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { generateTripPlan } from "@/services/travel/trip-planner";
 
@@ -14,11 +14,6 @@ export async function GET(request: NextRequest) {
   const recommendationId = request.nextUrl.searchParams.get("recommendationId");
 
   try {
-    // Get user's home state from profile
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, session.user.id),
-    });
-
     // Try to get home state from preferences
     const { hunterPreferences } = await import("@/lib/db/schema");
     const homeStatePref = await db.query.hunterPreferences.findFirst({

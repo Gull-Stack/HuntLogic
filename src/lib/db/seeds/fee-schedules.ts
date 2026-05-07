@@ -1,6 +1,5 @@
 import { db } from "@/lib/db";
 import { stateFeeSchedules, states, species } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
 
 // =============================================================================
 // Fee Schedule Seed — 2026 Draw Year

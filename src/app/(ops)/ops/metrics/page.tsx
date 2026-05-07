@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { SkeletonList } from "@/components/ui/Skeleton";
 import { fetchWithCache, invalidateCache } from "@/lib/api/cache";
 import {
   Clock,

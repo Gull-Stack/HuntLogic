@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { appConfig } from "@/lib/db/schema";
 import { config } from "@/lib/config";
-import { eq, like } from "drizzle-orm";
+import { like } from "drizzle-orm";
 
 export interface TenantConfig {
   id: string;

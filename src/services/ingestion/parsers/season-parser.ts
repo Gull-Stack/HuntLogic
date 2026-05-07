@@ -34,7 +34,12 @@ export class SeasonParser extends BaseParser {
   ): Promise<ParsedResult> {
     console.log("[ingestion:parser:season_dates] Parsing season data");
 
-    const columnMap = { ...DEFAULT_COLUMN_MAP, ...(config.column_mappings || {}) };
+    // config.column_mappings can carry numeric column indices; the parser
+    // funcs always String()-coerce before reading, so cast to the string keys.
+    const columnMap = {
+      ...DEFAULT_COLUMN_MAP,
+      ...(config.column_mappings || {}),
+    } as Record<string, string>;
     const isHtmlTable = /<table/i.test(rawContent);
     const isJson = rawContent.trim().startsWith("[") || rawContent.trim().startsWith("{");
 

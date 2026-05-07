@@ -10,7 +10,6 @@ import {
   getGearChecklistKey,
   getTrainingPlanKey,
   getTimelineKey,
-  type ChecklistTemplate,
 } from "./checklists";
 
 const LOG_PREFIX = "[scouting]";

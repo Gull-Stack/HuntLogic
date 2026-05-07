@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { states, species, huntUnits, outfitters, deadlines } from "@/lib/db/schema";
-import { sql, ilike, or } from "drizzle-orm";
+import { ilike, or } from "drizzle-orm";
 
 const MAX_PER_CATEGORY = 50;
 

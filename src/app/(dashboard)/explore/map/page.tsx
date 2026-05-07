@@ -2,7 +2,6 @@
 
 import dynamic from "next/dynamic";
 import { useState, useEffect, useCallback } from "react";
-import { cn } from "@/lib/utils";
 import { ArrowLeft, ChevronDown } from "lucide-react";
 import Link from "next/link";
 

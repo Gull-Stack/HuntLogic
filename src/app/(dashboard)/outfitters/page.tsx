@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { Star, ExternalLink, Search, ChevronDown } from "lucide-react";
+import { Star, Search, ChevronDown } from "lucide-react";
 import Link from "next/link";
 
 interface Outfitter {
@@ -22,7 +22,7 @@ export default function OutfittersPage() {
   const [outfitters, setOutfitters] = useState<Outfitter[]>([]);
   const [loading, setLoading] = useState(true);
   const [stateFilter, setStateFilter] = useState("");
-  const [speciesFilter, setSpeciesFilter] = useState("");
+  const [speciesFilter] = useState("");
   const [priceFilter, setPriceFilter] = useState("");
   const [stateOptions, setStateOptions] = useState<{ code: string; name: string }[]>([]);
 

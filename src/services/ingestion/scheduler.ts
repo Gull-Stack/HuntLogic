@@ -9,7 +9,7 @@ import { eq, and } from "drizzle-orm";
 import { db } from "../../lib/db";
 import { dataSources } from "../../lib/db/schema";
 import { fetchQueue } from "./queue";
-import type { FetchJobData, ScraperConfig, EndpointConfig } from "./types";
+import type { FetchJobData, ScraperConfig } from "./types";
 
 const LOG_PREFIX = "[ingestion:scheduler]";
 

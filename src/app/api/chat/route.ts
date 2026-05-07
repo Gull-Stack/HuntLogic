@@ -210,9 +210,17 @@ async function callOpenAIDirect(
   const { OpenAI } = await import("openai");
   const client = new OpenAI({ apiKey, timeout: 20_000 });
 
+  const typedMessages = messages.map((m) => ({
+    role: (m.role === "user" ? "user" : "assistant") as "user" | "assistant",
+    content: m.content,
+  }));
+
   const completion = await client.chat.completions.create({
     model: process.env.OPENAI_MODEL || "gpt-4o",
-    messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
+    messages: [
+      { role: "system" as const, content: SYSTEM_PROMPT },
+      ...typedMessages,
+    ],
     max_tokens: 300,
     temperature: 0.7,
   });
@@ -248,13 +256,18 @@ async function callGeminiDirect(
     throw new Error("Cannot form valid Gemini turn sequence");
   }
 
-  const mergedContents = geminiContents.reduce<Array<{ role: "user" | "model"; parts: { text: string }[] }>>(
+  type GeminiTurn = { role: "user" | "model"; parts: { text: string }[] };
+  const mergedContents = geminiContents.reduce<GeminiTurn[]>(
     (acc, current) => {
       const prev = acc[acc.length - 1];
-      if (prev && prev.role === current.role) {
-        prev.parts.push(...current.parts);
+      const turn: GeminiTurn = {
+        role: current.role === "model" ? "model" : "user",
+        parts: [...current.parts],
+      };
+      if (prev && prev.role === turn.role) {
+        prev.parts.push(...turn.parts);
       } else {
-        acc.push({ ...current, parts: [...current.parts] });
+        acc.push(turn);
       }
       return acc;
     },

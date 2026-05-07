@@ -3,7 +3,7 @@
 // =============================================================================
 
 import { db } from "@/lib/db";
-import { hunterPreferences, pointHoldings, stateSpecies, states, species } from "@/lib/db/schema";
+import { pointHoldings, stateSpecies, states, species } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 
 interface GroupSuggestion {

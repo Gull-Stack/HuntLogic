@@ -92,7 +92,10 @@ export abstract class BaseParser {
 
   private extractTableFromElement(
     $: cheerio.CheerioAPI,
-    $table: cheerio.Cheerio<cheerio.Element>
+    // cheerio's Element type isn't directly exported in current versions —
+    // accept any cheerio selection wrapper since the only operations we use
+    // are Cheerio.find/text which exist on all node types.
+    $table: cheerio.Cheerio<any>
   ): string[][] {
     const rows: string[][] = [];
 

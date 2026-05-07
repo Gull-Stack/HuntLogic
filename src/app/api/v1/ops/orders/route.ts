@@ -97,7 +97,9 @@ export async function GET(request: NextRequest) {
       .innerJoin(users, eq(applicationOrders.userId, users.id));
 
     if (whereClause) {
-      countQuery = countQuery.where(whereClause);
+      // Drizzle's where() narrows the chain type so the prior variable can no
+      // longer hold the post-where shape. Cast keeps the chain typed loosely.
+      countQuery = countQuery.where(whereClause) as typeof countQuery;
     }
 
     // We handle orderIdsInState separately via a raw SQL filter

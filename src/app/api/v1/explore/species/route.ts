@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { species, stateSpecies } from "@/lib/db/schema";
+import { species } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 
 export async function GET() {

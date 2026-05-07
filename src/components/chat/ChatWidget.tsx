@@ -42,12 +42,19 @@ export function ChatWidget() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: updated }),
+        body: JSON.stringify({
+          messages: updated.map((m) => ({ role: m.role, content: m.content })),
+        }),
       });
-      const data = await res.json();
+      const data: { reply?: string; text?: string; error?: string } = await res
+        .json()
+        .catch(() => ({}));
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: data.reply || "Sorry, try again." },
+        {
+          role: "assistant",
+          content: data.reply || data.text || "Sorry, try again.",
+        },
       ]);
     } catch {
       setMessages((prev) => [

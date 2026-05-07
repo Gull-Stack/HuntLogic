@@ -49,8 +49,8 @@ export default function OutfitterDetailPage() {
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewText, setReviewText] = useState("");
-  const [reviewYear, setReviewYear] = useState(new Date().getFullYear());
-  const [reviewSuccess, setReviewSuccess] = useState<boolean | undefined>();
+  const [reviewYear] = useState(new Date().getFullYear());
+  const [reviewSuccess] = useState<boolean | undefined>();
   const [submitting, setSubmitting] = useState(false);
 
   const fetchDetail = useCallback(async () => {

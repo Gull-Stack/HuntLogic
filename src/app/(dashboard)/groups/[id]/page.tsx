@@ -7,7 +7,6 @@ import {
   Users,
   Plus,
   Mail,
-  Trash2,
   CheckCircle,
   Clock,
   ArrowLeft,

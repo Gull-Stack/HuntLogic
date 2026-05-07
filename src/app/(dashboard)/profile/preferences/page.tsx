@@ -198,9 +198,10 @@ export default function PreferencesPage() {
         value: pref.value,
       }));
 
-      const response = await apiClient.put("/profile/preferences", {
-        preferences: preferencesToSave,
-      });
+      const response = await apiClient.put<{ data?: typeof prefs }>(
+        "/profile/preferences",
+        { preferences: preferencesToSave },
+      );
 
       if (response.error) {
         throw new Error(response.error);

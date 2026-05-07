@@ -34,7 +34,12 @@ export class HarvestReportParser extends BaseParser {
   ): Promise<ParsedResult> {
     console.log("[ingestion:parser:harvest_report] Parsing harvest report");
 
-    const columnMap = { ...DEFAULT_COLUMN_MAP, ...(config.column_mappings || {}) };
+    // config.column_mappings can carry numeric column indices; the parser
+    // funcs always String()-coerce before reading, so cast to the string keys.
+    const columnMap = {
+      ...DEFAULT_COLUMN_MAP,
+      ...(config.column_mappings || {}),
+    } as Record<string, string>;
 
     // Detect content type and parse accordingly
     const isHtmlTable = /<table/i.test(rawContent);
