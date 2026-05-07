@@ -19,7 +19,6 @@ import type { PointHolding } from "@/services/profile/types";
 import {
   STATE_SPECIES_INTELLIGENCE,
   KNOWN_SPECIES_SLUGS,
-  type SpeciesSlug,
 } from "@/lib/data/state-species-intelligence";
 import {
   STATE_POINT_SYSTEMS,
@@ -146,21 +145,41 @@ export default function PointsPage() {
     ? STATE_POINT_SYSTEMS[selectedState]
     : null;
 
+  // UUID lookup maps for resolving state code → stateId and species slug → speciesId
+  // (the API expects UUIDs; the form works in codes/slugs).
+  const [stateIdMap, setStateIdMap] = useState<Map<string, string>>(new Map());
+  const [speciesIdMap, setSpeciesIdMap] = useState<Map<string, string>>(new Map());
+  const [isSaving, setIsSaving] = useState(false);
+
   useEffect(() => {
-    async function fetchHoldings() {
+    async function fetchAll() {
       try {
-        const res = await fetch("/api/v1/profile/points");
-        if (res.ok) {
-          const data = await res.json();
+        const [holdingsRes, statesRes, speciesRes] = await Promise.all([
+          fetch("/api/v1/profile/points"),
+          fetch("/api/v1/explore/states"),
+          fetch("/api/v1/explore/species"),
+        ]);
+        if (holdingsRes.ok) {
+          const data = await holdingsRes.json();
           setHoldings(data.data || data);
         }
+        if (statesRes.ok) {
+          const sd = await statesRes.json();
+          const rows = (sd.data ?? sd) as Array<{ id: string; code: string }>;
+          setStateIdMap(new Map(rows.map((s) => [s.code, s.id])));
+        }
+        if (speciesRes.ok) {
+          const spd = await speciesRes.json();
+          const rows = (spd.data ?? spd) as Array<{ id: string; slug: string }>;
+          setSpeciesIdMap(new Map(rows.map((sp) => [sp.slug, sp.id])));
+        }
       } catch (err) {
-        console.error("[points] Failed to fetch holdings:", err);
+        console.error("[points] Failed to fetch:", err);
       } finally {
         setIsLoading(false);
       }
     }
-    fetchHoldings();
+    fetchAll();
   }, []);
 
   // Reset species form when state changes
@@ -210,52 +229,139 @@ export default function PointsPage() {
     setEditValue(currentPoints);
   };
 
-  const handleSaveEdit = (id: string) => {
+  const handleSaveEdit = async (id: string) => {
+    const original = holdings.find((h) => h.id === id);
+    if (!original) {
+      setEditingId(null);
+      return;
+    }
+
+    // Optimistic update — close editor immediately.
     setHoldings((prev) =>
       prev.map((h) => (h.id === id ? { ...h, points: editValue } : h)),
     );
     setEditingId(null);
+
+    try {
+      const res = await fetch("/api/v1/profile/points", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          holdings: [
+            {
+              stateId: original.stateId,
+              speciesId: original.speciesId,
+              pointType: original.pointType,
+              points: editValue,
+            },
+          ],
+        }),
+      });
+      if (!res.ok) {
+        // Rollback on failure
+        setHoldings((prev) =>
+          prev.map((h) => (h.id === id ? { ...h, points: original.points } : h)),
+        );
+        const err = await res.json().catch(() => ({}));
+        console.error("[points] Edit PUT failed:", err);
+        alert(
+          `Could not save points: ${(err as { message?: string }).message ?? `HTTP ${res.status}`}`,
+        );
+        return;
+      }
+      // Sync from server response so the row keeps its canonical UUID + timestamps.
+      const data = (await res.json()) as { data?: PointHolding[] };
+      if (data.data) setHoldings(data.data);
+    } catch (err) {
+      // Rollback on network error
+      setHoldings((prev) =>
+        prev.map((h) => (h.id === id ? { ...h, points: original.points } : h)),
+      );
+      console.error("[points] Edit PUT error:", err);
+      alert("Could not save points. Check your connection and try again.");
+    }
   };
 
-  const handleSaveAll = () => {
+  const handleSaveAll = async () => {
     if (!selectedState) return;
 
-    const newHoldings: PointHolding[] = [];
-    const now = new Date().toISOString();
+    const stateId = stateIdMap.get(selectedState);
+    if (!stateId) {
+      console.error("[points] Unknown state code, cannot resolve to UUID:", selectedState);
+      alert("Could not save points: state not recognized.");
+      return;
+    }
+
+    type Payload = {
+      stateId: string;
+      speciesId: string;
+      pointType: "preference" | "bonus" | "loyalty";
+      points: number;
+    };
+    const holdingsToSave: Payload[] = [];
 
     for (const sp of stateSpecies) {
+      // Skip species that don't actually have a point system in this state
+      if (sp.pointType === "none") continue;
+
       const entry = speciesPoints[sp.slug];
-      if (!entry) continue;
+      // Skip untouched fields — preserves existing server-side values rather
+      // than overwriting them with 0.
+      if (!entry || entry.points === "" || entry.points.trim() === "") continue;
 
-      const pts = entry.points === "" ? 0 : parseInt(entry.points, 10) || 0;
+      const pts = parseInt(entry.points, 10);
+      if (Number.isNaN(pts) || pts < 0) continue;
 
-      // Only save species where user entered points > 0
-      if (pts > 0) {
-        newHoldings.push({
-          id: `ph-${Date.now()}-${sp.slug}`,
-          userId: "u-1",
-          stateId: selectedState,
-          speciesId: sp.slug,
-          stateName: STATE_NAMES[selectedState] ?? selectedState,
-          stateCode: selectedState,
-          speciesName: sp.name,
-          pointType: sp.pointType,
-          points: pts,
-          yearStarted: null,
-          verified: false,
-          createdAt: now,
-          updatedAt: now,
-        });
+      const speciesId = speciesIdMap.get(sp.slug);
+      if (!speciesId) {
+        console.warn("[points] Unknown species slug, skipping:", sp.slug);
+        continue;
       }
+
+      // Map sp.pointType (which may include "hybrid" etc.) to a valid API value.
+      const pointType: Payload["pointType"] =
+        sp.pointType === "bonus"
+          ? "bonus"
+          : sp.pointType === "loyalty"
+            ? "loyalty"
+            : "preference";
+
+      holdingsToSave.push({ stateId, speciesId, pointType, points: pts });
     }
 
-    if (newHoldings.length > 0) {
-      setHoldings((prev) => [...prev, ...newHoldings]);
+    if (holdingsToSave.length === 0) {
+      setShowAddSheet(false);
+      setSelectedState("");
+      setSpeciesPoints({});
+      return;
     }
 
-    setShowAddSheet(false);
-    setSelectedState("");
-    setSpeciesPoints({});
+    setIsSaving(true);
+    try {
+      const res = await fetch("/api/v1/profile/points", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ holdings: holdingsToSave }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.error("[points] Save PUT failed:", err);
+        alert(
+          `Could not save points: ${(err as { message?: string }).message ?? `HTTP ${res.status}`}`,
+        );
+        return;
+      }
+      const data = (await res.json()) as { data?: PointHolding[] };
+      if (data.data) setHoldings(data.data);
+      setShowAddSheet(false);
+      setSelectedState("");
+      setSpeciesPoints({});
+    } catch (err) {
+      console.error("[points] Save PUT error:", err);
+      alert("Could not save points. Check your connection and try again.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleSpeciesPointChange = (slug: string, value: string) => {
@@ -558,9 +664,11 @@ export default function PointsPage() {
               <Button
                 fullWidth
                 onClick={handleSaveAll}
-                disabled={!hasAnyPoints}
+                disabled={!hasAnyPoints || isSaving}
               >
-                Save Points for {STATE_NAMES[selectedState] ?? selectedState}
+                {isSaving
+                  ? "Saving…"
+                  : `Save Points for ${STATE_NAMES[selectedState] ?? selectedState}`}
               </Button>
             </div>
           )}
