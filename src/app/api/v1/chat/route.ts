@@ -21,12 +21,33 @@ import {
   huntUnits,
 } from "@/lib/db/schema";
 import { config } from "@/lib/config";
+import { assembleContext } from "@/lib/ai/rag";
+import { buildKnowledgeContext } from "@/lib/ai/knowledge-packs";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const GATEWAY_URL = process.env.OPENCLAW_GATEWAY_URL || "https://huntlogic.mysupertool.app";
 const GATEWAY_TOKEN = process.env.OPENCLAW_GATEWAY_TOKEN || "";
+const MAX_MESSAGE_LENGTH = 4_000;
+const MAX_HISTORY_ITEMS = 10;
+const MAX_HISTORY_CONTENT_LENGTH = 2_000;
+const CHAT_SYSTEM_PROMPT = `You are ${config.app.aiAssistantName}, the AI concierge for ${config.app.brandName} — a national hunting guide powered by real state agency data.
+
+Behavior rules:
+- Answer the hunter's actual question first. Do not dodge into a different state or species before answering what they asked.
+- When the hunter asks for best zones, units, or application strategy, give a ranked or tiered answer with tradeoffs.
+- Separate official state-agency facts from hunter-consensus nuance. Label hunter-consensus guidance clearly.
+- Use specific numbers only when they are present in the grounded context. Never invent draw odds or tag counts.
+- If confidence is limited, say exactly what is uncertain.
+- Keep the tone direct, useful, and like a seasoned outfitter who genuinely wants hunters to fill their tags.`;
+
+let stateReferenceCache:
+  | { id: string; code: string; name: string }[]
+  | null = null;
+let speciesReferenceCache:
+  | { id: string; commonName: string; slug: string }[]
+  | null = null;
 
 export async function POST(request: NextRequest) {
   const session = await auth();
@@ -49,25 +70,44 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Message is required" }, { status: 400 });
   }
 
+  const trimmedMessage = message.trim();
+  if (trimmedMessage.length > MAX_MESSAGE_LENGTH) {
+    return NextResponse.json({ error: "Message is too long" }, { status: 400 });
+  }
+
+  const sanitizedHistory = Array.isArray(history)
+    ? history.slice(-MAX_HISTORY_ITEMS).map((item) => ({
+        role: item?.role === "user" ? "user" : "assistant",
+        content:
+          typeof item?.content === "string"
+            ? item.content.slice(0, MAX_HISTORY_CONTENT_LENGTH)
+            : "",
+      }))
+    : [];
+
   // Load hunter profile context from DB
   const profileContext = await loadHunterProfileContext(session.user.id);
 
   // Build context from history
   const aiName = config.app.aiAssistantName;
-  const contextLines = history
-    .slice(-10)
+  const contextLines = sanitizedHistory
     .map((m) => `${m.role === "user" ? "Hunter" : aiName}: ${m.content}`)
     .join("\n");
 
-  // Assemble full message: profile context + conversation history + current message
+  const groundingContext = await buildGroundingContext(trimmedMessage);
+
+  // Assemble full message: profile context + grounding + conversation history + current message
   const messageParts: string[] = [];
   if (profileContext) {
     messageParts.push(profileContext);
   }
+  if (groundingContext) {
+    messageParts.push(groundingContext);
+  }
   if (contextLines) {
     messageParts.push(`Previous conversation:\n${contextLines}`);
   }
-  messageParts.push(`Hunter: ${message.trim()}`);
+  messageParts.push(`Hunter: ${trimmedMessage}`);
 
   const fullMessage = messageParts.join("\n\n");
 
@@ -120,15 +160,32 @@ export async function POST(request: NextRequest) {
 
 async function loadHunterProfileContext(userId: string): Promise<string> {
   try {
+    const [prefs, points, activePlaybook] = await Promise.all([
+      db
+        .select({
+          category: hunterPreferences.category,
+          key: hunterPreferences.key,
+          value: hunterPreferences.value,
+        })
+        .from(hunterPreferences)
+        .where(eq(hunterPreferences.userId, userId)),
+      db
+        .select({
+          stateCode: states.code,
+          speciesName: species.commonName,
+          points: pointHoldings.points,
+          pointType: pointHoldings.pointType,
+        })
+        .from(pointHoldings)
+        .innerJoin(states, eq(pointHoldings.stateId, states.id))
+        .innerJoin(species, eq(pointHoldings.speciesId, species.id))
+        .where(eq(pointHoldings.userId, userId)),
+      db.query.playbooks.findFirst({
+        where: and(eq(playbooks.userId, userId), eq(playbooks.status, "active")),
+      }),
+    ]);
+
     // --- 1. Hunter Preferences ---
-    const prefs = await db
-      .select({
-        category: hunterPreferences.category,
-        key: hunterPreferences.key,
-        value: hunterPreferences.value,
-      })
-      .from(hunterPreferences)
-      .where(eq(hunterPreferences.userId, userId));
 
     // Group preferences by category for readable formatting
     const speciesInterests: string[] = [];
@@ -178,23 +235,7 @@ async function loadHunterProfileContext(userId: string): Promise<string> {
     if (orientation) prefParts.push(`orientation: ${orientation}`);
     if (otherPrefs.length > 0) prefParts.push(...otherPrefs);
 
-    // --- 2. Point Holdings ---
-    const points = await db
-      .select({
-        stateCode: states.code,
-        speciesName: species.commonName,
-        points: pointHoldings.points,
-        pointType: pointHoldings.pointType,
-      })
-      .from(pointHoldings)
-      .innerJoin(states, eq(pointHoldings.stateId, states.id))
-      .innerJoin(species, eq(pointHoldings.speciesId, species.id))
-      .where(eq(pointHoldings.userId, userId));
-
-    // --- 3. Top 3 Active Recommendations ---
-    const activePlaybook = await db.query.playbooks.findFirst({
-      where: and(eq(playbooks.userId, userId), eq(playbooks.status, "active")),
-    });
+    // --- 2. Point Holdings + 3. Active Playbook loaded above in parallel ---
 
     let topRecs: {
       stateCode: string;
@@ -274,6 +315,103 @@ async function loadHunterProfileContext(userId: string): Promise<string> {
 // OpenClaw Gateway — local agent call
 // =============================================================================
 
+async function buildGroundingContext(message: string): Promise<string> {
+  const parts: string[] = ["[Grounding Context]"];
+
+  const [detected, knowledgeContext] = await Promise.all([
+    detectStateAndSpecies(message),
+    buildKnowledgeContext(message, 2).catch((error) => {
+      console.warn(
+        "[chat] Failed to load local knowledge packs:",
+        error instanceof Error ? error.message : String(error)
+      );
+      return "";
+    }),
+  ]);
+
+  try {
+    const ragContext = await assembleContext(
+      `${message} hunt strategy draw odds harvest access pressure regulations`,
+      4,
+      detected.stateId || detected.speciesId
+        ? {
+            stateId: detected.stateId ?? undefined,
+            speciesId: detected.speciesId ?? undefined,
+          }
+        : undefined
+    );
+
+    if (ragContext) {
+      parts.push(`Official data context:\n${ragContext}`);
+    }
+  } catch (error) {
+    console.warn(
+      "[chat] Failed to build RAG context:",
+      error instanceof Error ? error.message : String(error)
+    );
+  }
+
+  if (knowledgeContext) {
+    parts.push(
+      `Curated HuntLogic research context (label non-official consensus clearly):\n<context>\n${knowledgeContext}\n</context>`
+    );
+  }
+
+  return parts.length > 1 ? parts.join("\n\n") : "";
+}
+
+async function detectStateAndSpecies(message: string): Promise<{ stateId: string | null; speciesId: string | null }> {
+  const lowered = message.toLowerCase();
+
+  const [stateRows, speciesRows] = await Promise.all([
+    getStateReferenceRows(),
+    getSpeciesReferenceRows(),
+  ]);
+
+  const matchedState = stateRows.find((state) => {
+    const name = state.name.toLowerCase();
+    if (lowered.includes(name)) return true;
+    const safeCode = escapeRegExp(state.code.toLowerCase());
+    const codePattern = new RegExp(`\\b${safeCode}\\b`, "i");
+    return codePattern.test(message);
+  });
+
+  const matchedSpecies = speciesRows.find((sp) => {
+    const common = sp.commonName.toLowerCase();
+    const slug = sp.slug.replaceAll("_", " ").toLowerCase();
+    return lowered.includes(common) || lowered.includes(slug);
+  });
+
+  return {
+    stateId: matchedState?.id ?? null,
+    speciesId: matchedSpecies?.id ?? null,
+  };
+}
+
+async function getStateReferenceRows() {
+  if (!stateReferenceCache) {
+    stateReferenceCache = await db
+      .select({ id: states.id, code: states.code, name: states.name })
+      .from(states);
+  }
+
+  return stateReferenceCache;
+}
+
+async function getSpeciesReferenceRows() {
+  if (!speciesReferenceCache) {
+    speciesReferenceCache = await db
+      .select({ id: species.id, commonName: species.commonName, slug: species.slug })
+      .from(species);
+  }
+
+  return speciesReferenceCache;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 async function callOpenClawGateway(message: string): Promise<string> {
   const res = await fetch(`${GATEWAY_URL}/v1/chat/completions`, {
     method: "POST",
@@ -284,7 +422,7 @@ async function callOpenClawGateway(message: string): Promise<string> {
     body: JSON.stringify({
       model: "openclaw:teddy",
       messages: [
-        { role: "system", content: `You are Grizz, the AI concierge for HuntLogic. You are knowledgeable, direct, and friendly — like a seasoned outfitter who genuinely wants hunters to fill their tags. Use specific numbers when available. When uncertain, say so clearly.` },
+        { role: "system", content: CHAT_SYSTEM_PROMPT },
         { role: "user", content: message },
       ],
       max_tokens: 4096,
@@ -324,7 +462,7 @@ async function callAnthropicDirect(message: string): Promise<string> {
     model: config.ai.model,
     max_tokens: 4096,
     temperature: 0.7,
-    system: `You are ${config.app.aiAssistantName}, the AI concierge for ${config.app.brandName} — a national hunting guide powered by real state agency data. You are knowledgeable, direct, and friendly — like a seasoned outfitter who genuinely wants hunters to fill their tags. Use specific numbers when available. When uncertain, say so clearly.`,
+    system: CHAT_SYSTEM_PROMPT,
     messages: [{ role: "user", content: message }],
   });
 
@@ -344,7 +482,7 @@ async function callOpenAIDirect(message: string): Promise<string> {
   const completion = await client.chat.completions.create({
     model: process.env.OPENAI_MODEL || "gpt-4o",
     messages: [
-      { role: "system", content: `You are ${config.app.aiAssistantName}, the AI concierge for ${config.app.brandName} — a national hunting guide powered by real state agency data. You are knowledgeable, direct, and friendly — like a seasoned outfitter who genuinely wants hunters to fill their tags. Use specific numbers when available. When uncertain, say so clearly.` },
+      { role: "system", content: CHAT_SYSTEM_PROMPT },
       { role: "user", content: message },
     ],
     max_tokens: 4096,
@@ -369,7 +507,7 @@ async function callGeminiDirect(message: string): Promise<string> {
   if (!/^[\w.-]+$/.test(model)) {
     throw new Error("Invalid GEMINI_CHAT_MODEL");
   }
-  const systemPrompt = `You are ${config.app.aiAssistantName}, the AI concierge for ${config.app.brandName} — a national hunting guide powered by real state agency data. You are knowledgeable, direct, and friendly — like a seasoned outfitter who genuinely wants hunters to fill their tags. Use specific numbers when available. When uncertain, say so clearly.`;
+  const systemPrompt = CHAT_SYSTEM_PROMPT;
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
