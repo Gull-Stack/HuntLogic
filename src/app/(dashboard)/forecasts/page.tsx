@@ -98,6 +98,41 @@ function ForecastsPageInner() {
   const [isLoading, setIsLoading] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [forecast, setForecast] = useState<ForecastData | null>(null);
+  // Mitch April 30 review #11: forecasts must use the hunter's actual points to
+  // produce a personalized "is it worth applying" verdict. Map keyed by
+  // `${stateCode}|${speciesSlug}` (uppercased state).
+  const [pointsByCombo, setPointsByCombo] = useState<Record<string, number>>(
+    {},
+  );
+
+  // Fetch the user's actual point holdings on mount so the ROI assessment is
+  // personalized (estimatedYearsToTag, breakEvenPointThreshold, alternativeUse
+  // all depend on current points).
+  useEffect(() => {
+    async function fetchHoldings() {
+      try {
+        const res = await fetchWithCache<{
+          data?: Array<{
+            stateCode: string;
+            speciesSlug?: string;
+            speciesName?: string;
+            points: number;
+          }>;
+        }>("/api/v1/profile/points", { staleMs: 60_000 });
+        const map: Record<string, number> = {};
+        for (const h of res.data ?? []) {
+          // Some payloads carry speciesSlug, some only speciesName — handle both.
+          const slug = h.speciesSlug ?? h.speciesName?.toLowerCase().replace(/\s+/g, "_");
+          if (!slug) continue;
+          map[`${h.stateCode.toUpperCase()}|${slug}`] = h.points;
+        }
+        setPointsByCombo(map);
+      } catch (err) {
+        console.error("[forecasts] Failed to load user points:", err);
+      }
+    }
+    fetchHoldings();
+  }, []);
 
   // Fetch available states and species on mount (rarely changes — 120s stale)
   useEffect(() => {
@@ -138,13 +173,17 @@ function ForecastsPageInner() {
     async function fetchForecast() {
       setIsLoading(true);
       try {
+        const userPoints =
+          pointsByCombo[
+            `${selection.state.toUpperCase()}|${selection.species}`
+          ] ?? 0;
         const [pointCreepData, roiData] = await Promise.all([
           fetchWithCache<RawForecastResponse>(
             `/api/v1/forecasts?type=point-creep&state=${selection.state}&species=${selection.species}`,
             { staleMs: 60_000 }
           ),
           fetchWithCache<RawRoiResponse>(
-            `/api/v1/forecasts?type=roi&state=${selection.state}&species=${selection.species}`,
+            `/api/v1/forecasts?type=roi&state=${selection.state}&species=${selection.species}&points=${userPoints}`,
             { staleMs: 60_000 }
           ),
         ]);
@@ -180,7 +219,7 @@ function ForecastsPageInner() {
           pointCreep: {
             historicalData,
             projectedData,
-            userPoints: 0, // User's points not available without profile context
+            userPoints,
             estimatedDrawYear,
           },
           drawOdds: {
@@ -210,6 +249,9 @@ function ForecastsPageInner() {
     }
 
     fetchForecast();
+    // pointsByCombo is intentionally NOT a dep — refetching when it changes
+    // would double-fire the forecast on initial load. The points read inside
+    // fetchForecast snapshots whatever is current at fetch time.
   }, [selection.state, selection.species]);
 
   const handleSelectionChange = (field: keyof ForecastSelection, value: string) => {
