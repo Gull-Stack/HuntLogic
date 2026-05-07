@@ -1,9 +1,17 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Search, MapPin, Target, ChevronRight, ChevronDown } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import {
+  Search,
+  MapPin,
+  Target,
+  ChevronRight,
+  ChevronDown,
+  Sparkles,
+} from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import Link from "next/link";
+import { UNIQUE_OPPORTUNITIES } from "@/lib/data/unique-opportunities";
 
 interface StateInfo {
   code: string;
@@ -42,6 +50,7 @@ export default function ExplorePage() {
   const [viewMode, setViewMode] = useState<ViewMode>("states");
   const [searchQuery, setSearchQuery] = useState("");
   const [regionFilter, setRegionFilter] = useState<string>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [states, setStates] = useState<StateInfo[]>([]);
   const [speciesList, setSpeciesList] = useState<SpeciesInfo[]>([]);
   const [expandedState, setExpandedState] = useState<string | null>(null);
@@ -85,9 +94,29 @@ export default function ExplorePage() {
     return matchesSearch && matchesRegion;
   });
 
-  const filteredSpecies = speciesList.filter((s) =>
-    s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.slug.includes(searchQuery.toLowerCase())
-  );
+  // Surface unique categories present in the loaded species list — drives the
+  // category chip row. Order is stable + readable.
+  const speciesCategories = useMemo(() => {
+    const seen = new Set<string>();
+    for (const s of speciesList) {
+      if (s.category) seen.add(s.category);
+    }
+    return ["all", ...Array.from(seen).sort()];
+  }, [speciesList]);
+
+  const filteredSpecies = speciesList.filter((s) => {
+    const matchesSearch =
+      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      s.slug.includes(searchQuery.toLowerCase());
+    const matchesCategory =
+      categoryFilter === "all" || s.category === categoryFilter;
+    return matchesSearch && matchesCategory;
+  });
+
+  const formatCategoryLabel = (c: string) =>
+    c === "all"
+      ? "All Categories"
+      : c.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
 
   if (loading) {
     return (
@@ -106,6 +135,49 @@ export default function ExplorePage() {
         <h1 className="text-2xl font-bold text-brand-forest dark:text-brand-cream">Explore</h1>
         <p className="mt-1 text-sm text-brand-sage">Browse hunting opportunities across all 50 states</p>
       </div>
+
+      {/* Unique opportunities — Mitch April 30 review #10 layer 3.
+          Curated overlooked hunts (KY elk lottery, ND/SD waterfowl, etc.). */}
+      {UNIQUE_OPPORTUNITIES.length > 0 && (
+        <div>
+          <div className="mb-3 flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-brand-sunset" />
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-brand-bark dark:text-brand-cream">
+              Unique opportunities
+            </h2>
+            <span className="text-xs text-brand-sage">
+              hunts most hunters miss
+            </span>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+            {UNIQUE_OPPORTUNITIES.map((opp) => (
+              <Link
+                key={opp.id}
+                href={`/forecasts?state=${opp.stateCode}&species=${opp.speciesSlug}`}
+                className="group min-w-[260px] max-w-[300px] flex-shrink-0 rounded-xl border border-brand-sage/10 bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:border-brand-sage/20 dark:bg-brand-bark"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span className="rounded bg-brand-forest/10 px-1.5 py-0.5 text-[10px] font-bold text-brand-forest dark:bg-brand-sage/20 dark:text-brand-sage">
+                    {opp.stateCode}
+                  </span>
+                  <span className="rounded bg-brand-sunset/10 px-1.5 py-0.5 text-[10px] font-medium uppercase text-brand-sunset">
+                    {opp.tagAccess}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm font-semibold leading-snug text-brand-bark group-hover:text-brand-forest dark:text-brand-cream">
+                  {opp.title}
+                </p>
+                <p className="mt-1 line-clamp-3 text-xs text-brand-sage">
+                  {opp.blurb}
+                </p>
+                <p className="mt-3 text-[11px] text-brand-sage">
+                  <span className="font-medium">When:</span> {opp.applicationWindow}
+                </p>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Search + View Toggle */}
       <div className="flex flex-col gap-3 sm:flex-row">
@@ -138,6 +210,25 @@ export default function ExplorePage() {
           </button>
         </div>
       </div>
+
+      {/* Category Filter (species view only) — Mitch #10 layer 1 + species categories from #4. */}
+      {viewMode === "species" && speciesCategories.length > 1 && (
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+          {speciesCategories.map((c) => (
+            <button
+              key={c}
+              onClick={() => setCategoryFilter(c)}
+              className={`min-h-[36px] whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                categoryFilter === c
+                  ? "bg-brand-forest text-white"
+                  : "border border-brand-sage/20 text-brand-sage hover:text-brand-bark"
+              }`}
+            >
+              {formatCategoryLabel(c)}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Region Filter (states view only) */}
       {viewMode === "states" && (
