@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { AlertBanner } from "@/components/dashboard/AlertBanner";
+import { ConciergeChatCard } from "@/components/dashboard/ConciergeChatCard";
 import { StrategySnapshot } from "@/components/dashboard/StrategySnapshot";
 import { DeadlineWidget } from "@/components/dashboard/DeadlineWidget";
 import { ActionFeed } from "@/components/dashboard/ActionFeed";
@@ -182,6 +183,9 @@ export default function DashboardPage() {
 
       {/* Alerts */}
       <AlertBanner alerts={data.alerts} />
+
+      {/* Concierge chat — Mitch April 30 review #2: chat as a core dashboard feature. */}
+      <ConciergeChatCard userName={data.userName} />
 
       {/* What Changed */}
       <WhatChanged />
