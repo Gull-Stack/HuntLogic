@@ -88,4 +88,4 @@ drizzle/meta/
 credentials.json
 service-account.json
 .env.vercel-check
-.env*.local
+.env*.local*
