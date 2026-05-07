@@ -6,7 +6,7 @@
 import { db } from "../src/lib/db";
 import { deadlines } from "../src/lib/db/schema/intelligence";
 import { states, species } from "../src/lib/db/schema/hunting";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 const LOG = "[fix-deadlines]";
 
