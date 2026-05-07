@@ -44,7 +44,7 @@ export function DeadlineWidget({ deadlines, maxItems = 5 }: DeadlineWidgetProps)
           <div className="flex items-center gap-2">
             <CalendarDays className="h-5 w-5 text-brand-earth" />
             <h2 className="text-lg font-semibold text-brand-bark dark:text-brand-cream">
-              Upcoming Deadlines
+              Important Dates & Deadlines
             </h2>
           </div>
           <Link
