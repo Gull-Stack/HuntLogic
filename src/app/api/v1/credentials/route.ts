@@ -70,7 +70,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { stateCode, username, password } = body;
+    const stateCode = String(body.stateCode ?? "").trim().toUpperCase();
+    const username = String(body.username ?? "").trim();
+    const password = String(body.password ?? "").trim();
 
     if (!stateCode || !username || !password) {
       return NextResponse.json(
@@ -119,12 +121,18 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       { stateCode, status: "active" },
-      { status: 201 }
+      { status: existing.length > 0 ? 200 : 201 }
     );
   } catch (error) {
     console.error("[api/credentials] POST error:", error);
+
+    const message =
+      error instanceof Error && error.message.includes("VAULT_ENCRYPTION_KEY")
+        ? "Credential encryption is not configured. Contact support."
+        : "Failed to save credentials";
+
     return NextResponse.json(
-      { error: "Failed to save credentials" },
+      { error: message },
       { status: 500 }
     );
   }
@@ -138,7 +146,7 @@ export async function DELETE(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url);
-    const stateCode = searchParams.get("stateCode");
+    const stateCode = searchParams.get("stateCode")?.trim().toUpperCase();
 
     if (!stateCode) {
       return NextResponse.json(

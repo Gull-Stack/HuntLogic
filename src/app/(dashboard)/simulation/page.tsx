@@ -6,11 +6,13 @@ import { getPointTypesForState } from "@/lib/data/state-point-systems";
 import { Plus, Trash2, Play, Trophy, DollarSign, Clock } from "lucide-react";
 
 interface ScenarioInput {
+  clientId: string;
   stateCode: string;
   speciesSlug: string;
   unitCode: string;
   currentPoints: number;
   strategy: "preference" | "bonus" | "random";
+  manualPointsOverride: boolean;
 }
 
 interface SimulationResult {
@@ -42,11 +44,13 @@ interface SpeciesOption {
 }
 
 const emptyScenario = (): ScenarioInput => ({
+  clientId: crypto.randomUUID(),
   stateCode: "",
   speciesSlug: "",
   unitCode: "",
   currentPoints: 0,
   strategy: "preference",
+  manualPointsOverride: false,
 });
 
 const STRATEGY_LABELS: Record<ScenarioInput["strategy"], string> = {
@@ -77,12 +81,14 @@ export default function SimulationPage() {
   const [running, setRunning] = useState(false);
   const [statesOptions, setStatesOptions] = useState<StateOption[]>([]);
   const [speciesOptions, setSpeciesOptions] = useState<SpeciesOption[]>([]);
+  const [pointsByCombo, setPointsByCombo] = useState<Record<string, number>>({});
 
   const fetchOptions = useCallback(async () => {
     try {
-      const [statesRes, speciesRes] = await Promise.all([
+      const [statesRes, speciesRes, pointsRes] = await Promise.all([
         fetch("/api/v1/explore/states"),
         fetch("/api/v1/explore/species"),
+        fetch("/api/v1/profile/points"),
       ]);
       if (statesRes.ok) {
         const data = await statesRes.json();
@@ -92,6 +98,20 @@ export default function SimulationPage() {
         const data = await speciesRes.json();
         setSpeciesOptions(data.species ?? []);
       }
+      if (pointsRes.ok) {
+        const data = (await pointsRes.json()) as {
+          data?: Array<{
+            stateCode: string;
+            speciesSlug: string;
+            points: number;
+          }>;
+        };
+        const next: Record<string, number> = {};
+        for (const holding of data.data ?? []) {
+          next[`${holding.stateCode.toUpperCase()}|${holding.speciesSlug}`] = holding.points;
+        }
+        setPointsByCombo(next);
+      }
     } catch {
       // Silent fail
     }
@@ -100,6 +120,27 @@ export default function SimulationPage() {
   useEffect(() => {
     fetchOptions();
   }, [fetchOptions]);
+
+  useEffect(() => {
+    if (Object.keys(pointsByCombo).length === 0) return;
+
+    setScenarios((prev) =>
+      prev.map((scenario) => {
+        const savedPoints =
+          pointsByCombo[
+            `${scenario.stateCode.toUpperCase()}|${scenario.speciesSlug}`
+          ];
+        if (
+          savedPoints === undefined ||
+          scenario.currentPoints > 0 ||
+          scenario.manualPointsOverride
+        ) {
+          return scenario;
+        }
+        return { ...scenario, currentPoints: savedPoints };
+      })
+    );
+  }, [pointsByCombo]);
 
   const addScenario = () => {
     if (scenarios.length < 3) {
@@ -127,15 +168,29 @@ export default function SimulationPage() {
           }
         }
 
+        if (field === "currentPoints") {
+          next.manualPointsOverride = true;
+        }
+
+        if ((field === "stateCode" || field === "speciesSlug") && !next.manualPointsOverride) {
+          const savedPoints =
+            pointsByCombo[
+              `${next.stateCode.toUpperCase()}|${next.speciesSlug}`
+            ];
+          if (savedPoints !== undefined) {
+            next.currentPoints = savedPoints;
+          }
+        }
+
         return next;
       })
     );
   };
 
   const runSimulation = async () => {
-    const validScenarios = scenarios.filter(
-      (s) => s.stateCode && s.speciesSlug
-    );
+    const validScenarios = scenarios
+      .filter((s) => s.stateCode && s.speciesSlug)
+      .map(({ clientId: _clientId, manualPointsOverride: _manualPointsOverride, ...scenario }) => scenario);
     if (validScenarios.length === 0) return;
 
     setRunning(true);
@@ -177,7 +232,7 @@ export default function SimulationPage() {
 
           return (
             <div
-              key={idx}
+              key={scenario.clientId}
               className="rounded-xl border border-brand-sage/10 bg-white p-4 shadow-sm dark:border-brand-sage/20 dark:bg-brand-bark"
             >
             <div className="mb-3 flex items-center justify-between">

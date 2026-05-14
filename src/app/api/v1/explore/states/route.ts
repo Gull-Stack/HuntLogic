@@ -7,6 +7,7 @@ export async function GET() {
   try {
     const result = await db
       .select({
+        id: states.id,
         code: states.code,
         name: states.name,
         region: states.region,

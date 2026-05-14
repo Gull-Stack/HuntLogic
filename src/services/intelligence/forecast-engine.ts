@@ -352,11 +352,11 @@ export async function forecastPointCreep(
 export async function forecastDrawOdds(
   stateIdOrCode: string,
   speciesIdOrSlug: string,
-  unitId: string,
+  unitId: string | undefined,
   userPoints: number
 ): Promise<DrawOddsForecast> {
   console.log(
-    `${LOG_PREFIX} forecastDrawOdds: ${stateIdOrCode}/${speciesIdOrSlug}/${unitId} @ ${userPoints} pts`
+    `${LOG_PREFIX} forecastDrawOdds: ${stateIdOrCode}/${speciesIdOrSlug}${unitId ? `/${unitId}` : ""} @ ${userPoints} pts`
   );
 
   let stateId = stateIdOrCode;
@@ -382,7 +382,7 @@ export async function forecastDrawOdds(
       and(
         eq(drawOdds.stateId, stateId),
         eq(drawOdds.speciesId, speciesId),
-        eq(drawOdds.huntUnitId, unitId)
+        ...(unitId ? [eq(drawOdds.huntUnitId, unitId)] : [])
       )
     )
     .orderBy(desc(drawOdds.year))
@@ -459,7 +459,7 @@ export async function forecastDrawOdds(
   return {
     stateId,
     speciesId,
-    unitId,
+    unitId: unitId ?? null,
     userPoints,
     yearOne: { probability: f0.probability, confidence: f0.confidence },
     yearThree: { probability: f1.probability, confidence: f1.confidence },

@@ -16,6 +16,7 @@ import {
 import { auth } from "@/lib/auth";
 import { sendMessage, ADVANCED_MODEL } from "@/lib/ai/client";
 import { loadPrompt, interpolatePrompt } from "@/lib/ai/prompts";
+import { resolveHuntUnitId } from "@/lib/hunting/unit-code";
 
 export async function GET(request: NextRequest) {
   try {
@@ -58,23 +59,19 @@ export async function GET(request: NextRequest) {
     // Resolve unit code to huntUnitId (requires stateId for uniqueness)
     let huntUnitId: string | undefined;
     if (unitParam) {
-      const unitConditions: SQL[] = [eq(huntUnits.unitCode, unitParam)];
-      if (stateId) {
-        unitConditions.push(eq(huntUnits.stateId, stateId));
-      }
-      if (speciesId) {
-        unitConditions.push(eq(huntUnits.speciesId, speciesId));
-      }
-      const unitRow = await db.query.huntUnits.findFirst({
-        where: and(...unitConditions),
+      const resolvedUnit = await resolveHuntUnitId({
+        unitCode: unitParam,
+        stateId,
+        speciesId,
+        stateCode: stateParam,
       });
-      if (!unitRow) {
+      if (!resolvedUnit) {
         return NextResponse.json(
           { error: `Hunt unit not found: ${unitParam}` },
           { status: 404 }
         );
       }
-      huntUnitId = unitRow.id;
+      huntUnitId = resolvedUnit.id;
     }
 
     const year = yearParam ? parseInt(yearParam, 10) : undefined;

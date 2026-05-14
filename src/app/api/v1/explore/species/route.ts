@@ -7,6 +7,7 @@ export async function GET() {
   try {
     const result = await db
       .select({
+        id: species.id,
         slug: species.slug,
         name: species.commonName,
         category: species.category,

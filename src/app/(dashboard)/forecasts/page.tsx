@@ -72,6 +72,16 @@ interface RawRoiResponse {
   };
 }
 
+interface RawDrawOddsResponse {
+  type: string;
+  forecast?: {
+    yearOne?: { probability: number; confidence: number };
+    yearThree?: { probability: number; confidence: number };
+    yearFive?: { probability: number; confidence: number };
+    explanation?: string;
+  };
+}
+
 const roiColors: Record<string, { variant: "success" | "info" | "warning" | "danger"; label: string }> = {
   continue: { variant: "success", label: "Continue" },
   strong_buy: { variant: "success", label: "Strong Buy" },
@@ -104,6 +114,7 @@ function ForecastsPageInner() {
   const [pointsByCombo, setPointsByCombo] = useState<Record<string, number>>(
     {},
   );
+  const [hasLoadedPoints, setHasLoadedPoints] = useState(false);
 
   // Fetch the user's actual point holdings on mount so the ROI assessment is
   // personalized (estimatedYearsToTag, breakEvenPointThreshold, alternativeUse
@@ -114,21 +125,19 @@ function ForecastsPageInner() {
         const res = await fetchWithCache<{
           data?: Array<{
             stateCode: string;
-            speciesSlug?: string;
-            speciesName?: string;
+            speciesSlug: string;
             points: number;
           }>;
         }>("/api/v1/profile/points", { staleMs: 60_000 });
         const map: Record<string, number> = {};
         for (const h of res.data ?? []) {
-          // Some payloads carry speciesSlug, some only speciesName — handle both.
-          const slug = h.speciesSlug ?? h.speciesName?.toLowerCase().replace(/\s+/g, "_");
-          if (!slug) continue;
-          map[`${h.stateCode.toUpperCase()}|${slug}`] = h.points;
+          map[`${h.stateCode.toUpperCase()}|${h.speciesSlug}`] = h.points;
         }
         setPointsByCombo(map);
       } catch (err) {
         console.error("[forecasts] Failed to load user points:", err);
+      } finally {
+        setHasLoadedPoints(true);
       }
     }
     fetchHoldings();
@@ -170,6 +179,10 @@ function ForecastsPageInner() {
       return;
     }
 
+    if (!hasLoadedPoints) {
+      return;
+    }
+
     async function fetchForecast() {
       setIsLoading(true);
       try {
@@ -177,9 +190,13 @@ function ForecastsPageInner() {
           pointsByCombo[
             `${selection.state.toUpperCase()}|${selection.species}`
           ] ?? 0;
-        const [pointCreepData, roiData] = await Promise.all([
+        const [pointCreepData, drawOddsData, roiData] = await Promise.all([
           fetchWithCache<RawForecastResponse>(
             `/api/v1/forecasts?type=point-creep&state=${selection.state}&species=${selection.species}`,
+            { staleMs: 60_000 }
+          ),
+          fetchWithCache<RawDrawOddsResponse>(
+            `/api/v1/forecasts?type=draw-odds&state=${selection.state}&species=${selection.species}&points=${userPoints}`,
             { staleMs: 60_000 }
           ),
           fetchWithCache<RawRoiResponse>(
@@ -189,6 +206,7 @@ function ForecastsPageInner() {
         ]);
 
         const rawForecast = pointCreepData.forecast;
+        const rawDrawOdds = drawOddsData.forecast;
         const rawAssessment = roiData.assessment;
 
         // Map API shape → component shape
@@ -209,11 +227,20 @@ function ForecastsPageInner() {
             ? projectedData[projectedData.length - 1]?.year ?? currentYear + 5
             : currentYear;
 
-        // Build draw odds trend from historical data
-        const drawOddsTrend = historicalData.map((d) => ({
-          year: d.year,
-          value: d.points,
-        }));
+        const drawOddsTrend = [
+          {
+            year: currentYear + 1,
+            value: (rawDrawOdds?.yearOne?.probability ?? 0) * 100,
+          },
+          {
+            year: currentYear + 3,
+            value: (rawDrawOdds?.yearThree?.probability ?? 0) * 100,
+          },
+          {
+            year: currentYear + 5,
+            value: (rawDrawOdds?.yearFive?.probability ?? 0) * 100,
+          },
+        ];
 
         setForecast({
           pointCreep: {
@@ -223,7 +250,7 @@ function ForecastsPageInner() {
             estimatedDrawYear,
           },
           drawOdds: {
-            atCurrentPoints: 0,
+            atCurrentPoints: (rawDrawOdds?.yearOne?.probability ?? 0) * 100,
             trend: drawOddsTrend,
           },
           roi: {
@@ -249,10 +276,7 @@ function ForecastsPageInner() {
     }
 
     fetchForecast();
-    // pointsByCombo is intentionally NOT a dep — refetching when it changes
-    // would double-fire the forecast on initial load. The points read inside
-    // fetchForecast snapshots whatever is current at fetch time.
-  }, [selection.state, selection.species]);
+  }, [selection.state, selection.species, pointsByCombo, hasLoadedPoints]);
 
   const handleSelectionChange = (field: keyof ForecastSelection, value: string) => {
     setSelection((prev) => ({ ...prev, [field]: value }));

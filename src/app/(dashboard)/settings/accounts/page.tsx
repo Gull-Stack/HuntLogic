@@ -65,7 +65,8 @@ export default function AccountsPage() {
 
   const handleLink = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!modalState || !username || !password) return;
+    const trimmedUsername = username.trim();
+    if (!modalState || !trimmedUsername || !password) return;
 
     setSaving(true);
     setError("");
@@ -75,7 +76,7 @@ export default function AccountsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           stateCode: modalState,
-          username,
+          username: trimmedUsername,
           password,
         }),
       });
@@ -84,7 +85,7 @@ export default function AccountsPage() {
         setModalState(null);
         setUsername("");
         setPassword("");
-        fetchLinked();
+        void fetchLinked();
       } else {
         const data = await res.json();
         setError(data.error ?? "Failed to link account");
@@ -102,7 +103,7 @@ export default function AccountsPage() {
         method: "DELETE",
       });
       setUnlinkConfirm(null);
-      fetchLinked();
+      void fetchLinked();
     } catch {
       // Silent fail
     }

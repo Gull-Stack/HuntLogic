@@ -191,6 +191,7 @@ async function getSimulationContext(
   try {
     const { db } = await import("@/lib/db");
     const { drawOdds, states, species } = await import("@/lib/db/schema");
+    const { resolveHuntUnitId } = await import("@/lib/hunting/unit-code");
     const { eq, and, desc } = await import("drizzle-orm");
 
     // Get state and species IDs
@@ -208,6 +209,24 @@ async function getSimulationContext(
       return getDefaultContext();
     }
 
+    const resolvedUnit = scenario.unitCode
+      ? await resolveHuntUnitId({
+          unitCode: scenario.unitCode,
+          stateId: stateRow.id,
+          speciesId: speciesRow.id,
+          stateCode: scenario.stateCode,
+        })
+      : null;
+
+    const drawOddsConditions = [
+      eq(drawOdds.stateId, stateRow.id),
+      eq(drawOdds.speciesId, speciesRow.id),
+    ];
+
+    if (resolvedUnit) {
+      drawOddsConditions.push(eq(drawOdds.huntUnitId, resolvedUnit.id));
+    }
+
     // Get recent draw odds data
     const recentOdds = await db
       .select({
@@ -218,12 +237,7 @@ async function getSimulationContext(
         totalTags: drawOdds.totalTags,
       })
       .from(drawOdds)
-      .where(
-        and(
-          eq(drawOdds.stateId, stateRow.id),
-          eq(drawOdds.speciesId, speciesRow.id)
-        )
-      )
+      .where(and(...drawOddsConditions))
       .orderBy(desc(drawOdds.year))
       .limit(10);
 

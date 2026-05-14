@@ -89,6 +89,7 @@ export interface PointHolding {
   stateName: string;
   stateCode: string;
   speciesName: string;
+  speciesSlug: string;
   pointType: string;
   points: number;
   yearStarted: number | null;

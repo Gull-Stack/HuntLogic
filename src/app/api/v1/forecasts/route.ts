@@ -14,6 +14,10 @@ import {
   forecastDrawOdds,
   assessPointValue,
 } from "@/services/intelligence/forecast-engine";
+import { resolveHuntUnitId } from "@/lib/hunting/unit-code";
+import { db } from "@/lib/db";
+import { states, species } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 
 const LOG_PREFIX = "[api:forecasts]";
 
@@ -51,7 +55,38 @@ export async function GET(request: NextRequest) {
       // ===========================================================================
       case "point-creep": {
         const unit = searchParams.get("unit") ?? undefined;
-        const forecast = await forecastPointCreep(stateCode, speciesSlug, unit);
+        let resolvedUnitId: string | undefined;
+
+        if (unit) {
+          const [stateRow, speciesRow] = await Promise.all([
+            db.query.states.findFirst({
+              where: eq(states.code, stateCode.toUpperCase()),
+              columns: { id: true, code: true },
+            }),
+            db.query.species.findFirst({
+              where: eq(species.slug, speciesSlug),
+              columns: { id: true },
+            }),
+          ]);
+
+          const resolvedUnit = await resolveHuntUnitId({
+            unitCode: unit,
+            stateId: stateRow?.id,
+            speciesId: speciesRow?.id,
+            stateCode: stateRow?.code ?? stateCode,
+          });
+
+          if (!resolvedUnit) {
+            return NextResponse.json(
+              { error: `Hunt unit not found: ${unit}` },
+              { status: 404 }
+            );
+          }
+
+          resolvedUnitId = resolvedUnit.id;
+        }
+
+        const forecast = await forecastPointCreep(stateCode, speciesSlug, resolvedUnitId);
 
         return NextResponse.json({
           type: "point-creep",
@@ -66,13 +101,6 @@ export async function GET(request: NextRequest) {
         const unit = searchParams.get("unit");
         const pointsStr = searchParams.get("points");
 
-        if (!unit) {
-          return NextResponse.json(
-            { error: "unit query parameter is required for draw-odds forecast" },
-            { status: 400 }
-          );
-        }
-
         const points = pointsStr ? parseInt(pointsStr, 10) : 0;
         if (isNaN(points)) {
           return NextResponse.json(
@@ -81,7 +109,39 @@ export async function GET(request: NextRequest) {
           );
         }
 
-        const forecast = await forecastDrawOdds(stateCode, speciesSlug, unit, points);
+        const [stateRow, speciesRow] = await Promise.all([
+          db.query.states.findFirst({
+            where: eq(states.code, stateCode.toUpperCase()),
+            columns: { id: true, code: true },
+          }),
+          db.query.species.findFirst({
+            where: eq(species.slug, speciesSlug),
+            columns: { id: true },
+          }),
+        ]);
+
+        const resolvedUnit = unit
+          ? await resolveHuntUnitId({
+              unitCode: unit,
+              stateId: stateRow?.id,
+              speciesId: speciesRow?.id,
+              stateCode: stateRow?.code ?? stateCode,
+            })
+          : null;
+
+        if (unit && !resolvedUnit) {
+          return NextResponse.json(
+            { error: `Hunt unit not found: ${unit}` },
+            { status: 404 }
+          );
+        }
+
+        const forecast = await forecastDrawOdds(
+          stateCode,
+          speciesSlug,
+          resolvedUnit?.id,
+          points
+        );
 
         return NextResponse.json({
           type: "draw-odds",

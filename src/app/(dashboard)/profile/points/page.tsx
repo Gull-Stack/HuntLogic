@@ -165,12 +165,18 @@ export default function PointsPage() {
         }
         if (statesRes.ok) {
           const sd = await statesRes.json();
-          const rows = (sd.data ?? sd) as Array<{ id: string; code: string }>;
+          const rows = (sd.states ?? sd.data ?? []) as Array<{
+            id: string;
+            code: string;
+          }>;
           setStateIdMap(new Map(rows.map((s) => [s.code, s.id])));
         }
         if (speciesRes.ok) {
           const spd = await speciesRes.json();
-          const rows = (spd.data ?? spd) as Array<{ id: string; slug: string }>;
+          const rows = (spd.species ?? spd.data ?? []) as Array<{
+            id: string;
+            slug: string;
+          }>;
           setSpeciesIdMap(new Map(rows.map((sp) => [sp.slug, sp.id])));
         }
       } catch (err) {
